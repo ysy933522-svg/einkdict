@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.MyApplication" parent="android:Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:textColorPrimary">@android:color/black</item>
+    </style>
+</resources>
