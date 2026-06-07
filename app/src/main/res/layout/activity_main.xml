@@ -5,7 +5,6 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <!-- 输入框 + 查询 + 历史 同行布局 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -47,7 +46,6 @@
             android:stateListAnimator="@null"/>
     </LinearLayout>
 
-    <!-- 结果展示区域，适配墨水屏 -->
     <TextView
         android:id="@+id/tv_result"
         android:layout_width="match_parent"
@@ -59,7 +57,6 @@
         android:lineSpacingExtra="4dp"
         android:textColor="#000000"/>
 
-    <!-- 分页+前进后退按钮 右下角对齐（墨水屏极简样式） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

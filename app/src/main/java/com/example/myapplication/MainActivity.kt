@@ -4,6 +4,7 @@ import DictDbHelper
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -14,6 +15,7 @@ import android.text.Spanned
 import android.text.TextPaint
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
+import android.view.KeyEvent
 import android.view.View
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
@@ -21,8 +23,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.GridView
 import android.widget.TextView
-import android.graphics.Color
-
 
 class MainActivity : Activity() {
 
@@ -50,6 +50,7 @@ class MainActivity : Activity() {
     private var historyCurrentPage = 0
     private var historyTotalPage = 0
     private var historyDialog: AlertDialog? = null
+    private var isHistoryDialogShowing = false
 
     private var isFastClick = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -228,7 +229,7 @@ class MainActivity : Activity() {
 
                 override fun updateDrawState(ds: TextPaint) {
                     super.updateDrawState(ds)
-                    ds.color = 0xFF000000.toInt()
+                    ds.color = Color.BLACK
                     ds.isUnderlineText = false
                 }
             }
@@ -241,7 +242,6 @@ class MainActivity : Activity() {
         }
         tvResult.text = spannable
     }
-
 
     private fun showHistoryDialog() {
         val totalCount = dbHelper.getHistoryTotalCount()
@@ -257,15 +257,21 @@ class MainActivity : Activity() {
         gvHistory.isVerticalScrollBarEnabled = false
         gvHistory.isHorizontalScrollBarEnabled = false
 
-        // 加载当前页数据 + 刷新UI状态
         fun loadHistoryPage() {
             val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
             val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
             gvHistory.adapter = adapter
 
             tvHistoryPage.text = "${historyCurrentPage + 1} / $historyTotalPage"
-            btnHistoryPrev.isEnabled = historyCurrentPage > 0
-            btnHistoryNext.isEnabled = historyCurrentPage < historyTotalPage - 1
+
+            val canHPrev = historyCurrentPage > 0
+            val canHNext = historyCurrentPage < historyTotalPage - 1
+
+            btnHistoryPrev.isEnabled = canHPrev
+            btnHistoryNext.isEnabled = canHNext
+
+            btnHistoryPrev.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
+            btnHistoryNext.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
 
             gvHistory.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
                 val word = pageData[position]
@@ -275,7 +281,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 上一页点击逻辑
         btnHistoryPrev.setOnClickListener {
             if (historyCurrentPage > 0) {
                 historyCurrentPage--
@@ -283,7 +288,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 下一页点击逻辑
         btnHistoryNext.setOnClickListener {
             if (historyCurrentPage < historyTotalPage - 1) {
                 historyCurrentPage++
@@ -298,12 +302,14 @@ class MainActivity : Activity() {
 
         historyDialog = dialogBuilder.create()
         historyDialog?.show()
-        // 首次加载第一页
+        isHistoryDialogShowing = true
+
+        historyDialog?.setOnDismissListener {
+            isHistoryDialogShowing = false
+        }
+
         loadHistoryPage()
     }
-
-
-
 
     private fun updatePageNum() {
         tvPageNum.text = "${currentPage + 1} / $totalPage"
@@ -316,19 +322,106 @@ class MainActivity : Activity() {
         btnPrev.isEnabled = canPrev
         btnNext.isEnabled = canNext
 
-        // 可用黑色，禁用灰色
         btnPrev.setTextColor(if (canPrev) Color.BLACK else Color.GRAY)
         btnNext.setTextColor(if (canNext) Color.BLACK else Color.GRAY)
     }
 
     private fun updateBrowseBtnState() {
-        btnBack.isEnabled = browseIndex > 0
-        btnForward.isEnabled = browseIndex < browseStack.size - 1
+        val canBack = browseIndex > 0
+        val canForward = browseIndex < browseStack.size - 1
+
+        btnBack.isEnabled = canBack
+        btnForward.isEnabled = canForward
+
+        btnBack.setTextColor(if (canBack) Color.BLACK else Color.GRAY)
+        btnForward.setTextColor(if (canForward) Color.BLACK else Color.GRAY)
+    }
+
+    // 蓝牙遥控器 / 翻页笔 按键翻页
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (event.repeatCount > 0) {
+            return super.onKeyDown(keyCode, event)
+        }
+
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_VOLUME_UP,
+            KeyEvent.KEYCODE_PAGE_DOWN -> {
+                if (isHistoryDialogShowing) {
+                    if (historyCurrentPage < historyTotalPage - 1) {
+                        historyCurrentPage++
+                        val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
+                        val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
+                        val gvHistory = historyDialog?.findViewById<GridView>(R.id.gv_history)
+                        val tvHistoryPage = historyDialog?.findViewById<TextView>(R.id.tv_history_page)
+                        val btnHistoryPrev = historyDialog?.findViewById<Button>(R.id.btn_history_prev)
+                        val btnHistoryNext = historyDialog?.findViewById<Button>(R.id.btn_history_next)
+
+                        gvHistory?.adapter = adapter
+                        tvHistoryPage?.text = "${historyCurrentPage + 1} / $historyTotalPage"
+
+                        val canHPrev = historyCurrentPage > 0
+                        val canHNext = historyCurrentPage < historyTotalPage - 1
+                        btnHistoryPrev?.isEnabled = canHPrev
+                        btnHistoryNext?.isEnabled = canHNext
+                        btnHistoryPrev?.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
+                        btnHistoryNext?.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
+                    }
+                    return true
+                } else {
+                    if (currentPage < totalPage - 1) {
+                        currentPage++
+                        showCurrentPage()
+                        updatePageBtnState()
+                        updatePageNum()
+                    }
+                    return true
+                }
+            }
+
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_VOLUME_DOWN,
+            KeyEvent.KEYCODE_PAGE_UP -> {
+                if (isHistoryDialogShowing) {
+                    if (historyCurrentPage > 0) {
+                        historyCurrentPage--
+                        val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
+                        val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
+                        val gvHistory = historyDialog?.findViewById<GridView>(R.id.gv_history)
+                        val tvHistoryPage = historyDialog?.findViewById<TextView>(R.id.tv_history_page)
+                        val btnHistoryPrev = historyDialog?.findViewById<Button>(R.id.btn_history_prev)
+                        val btnHistoryNext = historyDialog?.findViewById<Button>(R.id.btn_history_next)
+
+                        gvHistory?.adapter = adapter
+                        tvHistoryPage?.text = "${historyCurrentPage + 1} / $historyTotalPage"
+
+                        val canHPrev = historyCurrentPage > 0
+                        val canHNext = historyCurrentPage < historyTotalPage - 1
+                        btnHistoryPrev?.isEnabled = canHPrev
+                        btnHistoryNext?.isEnabled = canHNext
+                        btnHistoryPrev?.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
+                        btnHistoryNext?.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
+                    }
+                    return true
+                } else {
+                    if (currentPage > 0) {
+                        currentPage--
+                        showCurrentPage()
+                        updatePageBtnState()
+                        updatePageNum()
+                    }
+                    return true
+                }
+            }
+        }
+
+        return super.onKeyDown(keyCode, event)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         dbHelper.close()
         historyDialog?.dismiss()
+        isHistoryDialogShowing = false
     }
 }
