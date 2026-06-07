@@ -19,8 +19,10 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ListView
+import android.widget.GridView
 import android.widget.TextView
+import android.graphics.Color
+
 
 class MainActivity : Activity() {
 
@@ -31,23 +33,23 @@ class MainActivity : Activity() {
     private lateinit var btnNext: Button
     private lateinit var tvPageNum: TextView
     private lateinit var btnHistory: Button
-    // 新增：前进、后退按钮
     private lateinit var btnBack: Button
     private lateinit var btnForward: Button
 
     private lateinit var dbHelper: DictDbHelper
 
-    // 分页配置：每页14行
     private val PAGE_LINE_COUNT = 14
     private var allLineList = mutableListOf<String>()
     private var currentPage = 0
     private var totalPage = 0
 
-    // ========== 单词浏览前进/后退 核心变量 ==========
-    // 访问历史栈：按点击/查询顺序存储单词
     private val browseStack = mutableListOf<String>()
-    // 当前在栈中的索引
     private var browseIndex = -1
+
+    private val HISTORY_PAGE_SIZE = 30
+    private var historyCurrentPage = 0
+    private var historyTotalPage = 0
+    private var historyDialog: AlertDialog? = null
 
     private var isFastClick = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -57,7 +59,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Android11+ 文件权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!android.os.Environment.isExternalStorageManager()) {
                 val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
@@ -66,7 +67,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 绑定控件
         etInput = findViewById(R.id.et_input)
         btnQuery = findViewById(R.id.btn_query)
         tvResult = findViewById(R.id.tv_result)
@@ -83,10 +83,8 @@ class MainActivity : Activity() {
 
         updatePageNum()
         updatePageBtnState()
-        // 初始化前进后退按钮状态
         updateBrowseBtnState()
 
-        // 查询按钮
         btnQuery.setOnClickListener {
             if (!isFastClick) {
                 isFastClick = true
@@ -95,7 +93,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 上一页
         btnPrev.setOnClickListener {
             if (!isFastClick && currentPage > 0) {
                 isFastClick = true
@@ -107,7 +104,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 下一页
         btnNext.setOnClickListener {
             if (!isFastClick && currentPage < totalPage - 1) {
                 isFastClick = true
@@ -119,7 +115,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 历史记录
         btnHistory.setOnClickListener {
             if (!isFastClick) {
                 isFastClick = true
@@ -128,7 +123,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 后退按钮
         btnBack.setOnClickListener {
             if (browseIndex > 0) {
                 browseIndex--
@@ -139,7 +133,6 @@ class MainActivity : Activity() {
             }
         }
 
-        // 前进按钮
         btnForward.setOnClickListener {
             if (browseIndex < browseStack.size - 1) {
                 browseIndex++
@@ -163,9 +156,6 @@ class MainActivity : Activity() {
         }, 800)
     }
 
-    /**
-     * @param isJump true=前进/后退跳转查询，不再新增栈；false=手动/点击单词，新增栈
-     */
     private fun doQuery(isJump: Boolean) {
         val input = etInput.text.toString().trim()
         if (input.isEmpty()) {
@@ -177,13 +167,9 @@ class MainActivity : Activity() {
             return
         }
 
-        // 非跳转操作：压入浏览历史栈
         if (!isJump) {
-            // 清除当前索引之后的历史（类似浏览器新访问清空前进记录）
             if (browseIndex != browseStack.size - 1) {
-                while (browseStack.size > browseIndex + 1) {
-                    browseStack.removeLast()
-                }
+                while (browseStack.size > browseIndex + 1) browseStack.removeLast()
             }
             browseStack.add(input)
             browseIndex = browseStack.size - 1
@@ -210,7 +196,7 @@ class MainActivity : Activity() {
                     updatePageBtnState()
                     return@runOnUiThread
                 }
-                dbHelper.addHistory(this@MainActivity, input)
+                dbHelper.addHistory(input)
                 showCurrentPage()
                 updatePageBtnState()
                 updatePageNum()
@@ -222,27 +208,28 @@ class MainActivity : Activity() {
         val startIndex = currentPage * PAGE_LINE_COUNT
         val endIndex = startIndex + PAGE_LINE_COUNT
         val pageLines = if (endIndex >= allLineList.size) {
-            allLineList.subList(startIndex, allLineList.size)
+            allLineList.subList(startIndex, allLineList.size).toMutableList()
         } else {
-            allLineList.subList(startIndex, endIndex)
+            allLineList.subList(startIndex, endIndex).toMutableList()
         }
+        while (pageLines.size < PAGE_LINE_COUNT) pageLines.add("")
         val pageContent = pageLines.joinToString("\n")
 
         val spannable = SpannableString(pageContent)
         val wordRegex = Regex("[a-zA-Z]+")
         val matches = wordRegex.findAll(pageContent)
+
         for (match in matches) {
             val clickSpan = object : ClickableSpan() {
                 override fun onClick(widget: View) {
                     etInput.setText(match.value)
-                    // 点击单词：走正常查询，新增历史栈
                     doQuery(false)
                 }
 
                 override fun updateDrawState(ds: TextPaint) {
                     super.updateDrawState(ds)
                     ds.color = 0xFF000000.toInt()
-                    ds.isUnderlineText = false // 取消下划线
+                    ds.isUnderlineText = false
                 }
             }
             spannable.setSpan(
@@ -255,36 +242,85 @@ class MainActivity : Activity() {
         tvResult.text = spannable
     }
 
-    private fun showHistoryDialog() {
-        val historyList = dbHelper.getHistoryList(this)
-        val listView = ListView(this)
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, historyList)
-        listView.adapter = adapter
 
-        listView.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
-            val word = historyList[position]
-            etInput.setText(word)
-            doQuery(false)
+    private fun showHistoryDialog() {
+        val totalCount = dbHelper.getHistoryTotalCount()
+        historyCurrentPage = 0
+        historyTotalPage = if (totalCount == 0) 0 else (totalCount + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
+
+        val rootView = layoutInflater.inflate(R.layout.history_dialog_layout, null)
+        val gvHistory = rootView.findViewById<GridView>(R.id.gv_history)
+        val tvHistoryPage = rootView.findViewById<TextView>(R.id.tv_history_page)
+        val btnHistoryPrev = rootView.findViewById<Button>(R.id.btn_history_prev)
+        val btnHistoryNext = rootView.findViewById<Button>(R.id.btn_history_next)
+
+        gvHistory.isVerticalScrollBarEnabled = false
+        gvHistory.isHorizontalScrollBarEnabled = false
+
+        // 加载当前页数据 + 刷新UI状态
+        fun loadHistoryPage() {
+            val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
+            val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
+            gvHistory.adapter = adapter
+
+            tvHistoryPage.text = "${historyCurrentPage + 1} / $historyTotalPage"
+            btnHistoryPrev.isEnabled = historyCurrentPage > 0
+            btnHistoryNext.isEnabled = historyCurrentPage < historyTotalPage - 1
+
+            gvHistory.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
+                val word = pageData[position]
+                historyDialog?.dismiss()
+                etInput.setText(word)
+                doQuery(false)
+            }
         }
 
-        AlertDialog.Builder(this)
+        // 上一页点击逻辑
+        btnHistoryPrev.setOnClickListener {
+            if (historyCurrentPage > 0) {
+                historyCurrentPage--
+                loadHistoryPage()
+            }
+        }
+
+        // 下一页点击逻辑
+        btnHistoryNext.setOnClickListener {
+            if (historyCurrentPage < historyTotalPage - 1) {
+                historyCurrentPage++
+                loadHistoryPage()
+            }
+        }
+
+        val dialogBuilder = AlertDialog.Builder(this)
             .setTitle("查询历史")
-            .setView(listView)
-            .setNegativeButton("关闭", null)
-            .create()
-            .show()
+            .setView(rootView)
+            .setCancelable(true)
+
+        historyDialog = dialogBuilder.create()
+        historyDialog?.show()
+        // 首次加载第一页
+        loadHistoryPage()
     }
+
+
+
 
     private fun updatePageNum() {
         tvPageNum.text = "${currentPage + 1} / $totalPage"
     }
 
     private fun updatePageBtnState() {
-        btnPrev.isEnabled = currentPage > 0
-        btnNext.isEnabled = currentPage < totalPage - 1
+        val canPrev = currentPage > 0
+        val canNext = currentPage < totalPage - 1
+
+        btnPrev.isEnabled = canPrev
+        btnNext.isEnabled = canNext
+
+        // 可用黑色，禁用灰色
+        btnPrev.setTextColor(if (canPrev) Color.BLACK else Color.GRAY)
+        btnNext.setTextColor(if (canNext) Color.BLACK else Color.GRAY)
     }
 
-    // 更新前进、后退按钮可用状态
     private fun updateBrowseBtnState() {
         btnBack.isEnabled = browseIndex > 0
         btnForward.isEnabled = browseIndex < browseStack.size - 1
@@ -293,5 +329,6 @@ class MainActivity : Activity() {
     override fun onDestroy() {
         super.onDestroy()
         dbHelper.close()
+        historyDialog?.dismiss()
     }
 }
