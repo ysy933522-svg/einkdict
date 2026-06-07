@@ -57,8 +57,10 @@ class DictDbHelper(private val context: Context) {
     fun queryWordWithDict(word: String): MutableList<String> {
         val resultList = mutableListOf<String>()
         if (!isReady || db == null) return resultList
+        val lowerWord = word.lowercase()   // 转为小写
 
-        val cursor = db!!.rawQuery("SELECT dict_name, explain FROM word_dict WHERE word = ?", arrayOf(word))
+
+        val cursor = db!!.rawQuery("SELECT dict_name, explain FROM word_dict WHERE word = ?", arrayOf(lowerWord))
         while (cursor.moveToNext()) {
             val name = cursor.getString(0)
             val explain = cursor.getString(1)
