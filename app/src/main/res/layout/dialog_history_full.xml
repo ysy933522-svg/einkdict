@@ -3,9 +3,19 @@
     android:layout_width="520dp"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="10dp"
     android:background="#FFFFFF">
 
+    <!-- 自定义标题（白底黑字，无分割线） -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="查询历史"
+        android:textColor="#000000"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:paddingVertical="12dp"/>
+
+    <!-- 历史列表 -->
     <GridView
         android:id="@+id/gv_history"
         android:layout_width="match_parent"
@@ -15,8 +25,10 @@
         android:horizontalSpacing="10dp"
         android:stretchMode="columnWidth"
         android:scrollbars="none"
-        android:fadeScrollbars="false" />
+        android:fadeScrollbars="false"
+        android:background="#FFFFFF"/>
 
+    <!-- 分页栏 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

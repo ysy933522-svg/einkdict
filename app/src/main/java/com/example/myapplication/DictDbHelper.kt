@@ -6,12 +6,19 @@ import java.io.File
 
 class DictDbHelper(private val context: Context) {
     private val TAG = "DictDbHelper"
+    // 词典库：保留原有公共路径（只读，你手动放置）
     private val DB_FULL_PATH = "/sdcard/dicts_sqlite_diy_/dict.db"
     private var db: SQLiteDatabase? = null
     var isReady = false
         private set
 
+    // 历史数据库：App 私有目录，系统自动管理，无需权限
+    private fun getHistoryDb(): SQLiteDatabase {
+        return context.openOrCreateDatabase("history_db", Context.MODE_PRIVATE, null)
+    }
+
     init {
+        // 加载外部词典数据库
         Thread {
             val dbFile = File(DB_FULL_PATH)
             Log.d(TAG, "数据库路径: $DB_FULL_PATH")
@@ -35,15 +42,18 @@ class DictDbHelper(private val context: Context) {
             }
         }.start()
 
+        // 初始化私有历史表（私有目录，可正常写入）
         initHistoryTable()
     }
 
+    // 创建历史记录表（私有库）
     private fun initHistoryTable() {
-        val hDb = context.openOrCreateDatabase("history_db", Context.MODE_PRIVATE, null)
+        val hDb = getHistoryDb()
         hDb.execSQL("CREATE TABLE IF NOT EXISTS search_history(id INTEGER PRIMARY KEY AUTOINCREMENT, word TEXT UNIQUE)")
         hDb.close()
     }
 
+    // 原有词典查询方法 【完全未改动】
     fun queryWordWithDict(word: String): MutableList<String> {
         val resultList = mutableListOf<String>()
         if (!isReady || db == null) return resultList
@@ -58,16 +68,18 @@ class DictDbHelper(private val context: Context) {
         return resultList
     }
 
+    // 新增历史记录（写入私有数据库）
     fun addHistory(word: String) {
-        val hDb = context.openOrCreateDatabase("history_db", Context.MODE_PRIVATE, null)
+        val hDb = getHistoryDb()
         hDb.execSQL("INSERT OR IGNORE INTO search_history(word) VALUES(?)", arrayOf(word))
         hDb.close()
     }
 
+    // 分页查询历史记录（从私有数据库读取）
     fun getHistoryByPage(pageIndex: Int, pageSize: Int): MutableList<String> {
         val list = mutableListOf<String>()
         val offset = pageIndex * pageSize
-        val hDb = context.openOrCreateDatabase("history_db", Context.MODE_PRIVATE, null)
+        val hDb = getHistoryDb()
         val cursor = hDb.rawQuery(
             "SELECT word FROM search_history ORDER BY id DESC LIMIT ?, ?",
             arrayOf(offset.toString(), pageSize.toString())
@@ -80,8 +92,9 @@ class DictDbHelper(private val context: Context) {
         return list
     }
 
+    // 查询历史总条数（私有数据库）
     fun getHistoryTotalCount(): Int {
-        val hDb = context.openOrCreateDatabase("history_db", Context.MODE_PRIVATE, null)
+        val hDb = getHistoryDb()
         val cursor = hDb.rawQuery("SELECT COUNT(*) FROM search_history", null)
         var total = 0
         if (cursor.moveToFirst()) {

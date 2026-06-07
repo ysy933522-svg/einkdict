@@ -23,6 +23,11 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.GridView
 import android.widget.TextView
+import android.content.pm.PackageManager
+import android.view.LayoutInflater
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import android.app.Dialog
 
 class MainActivity : Activity() {
 
@@ -49,16 +54,34 @@ class MainActivity : Activity() {
     private val HISTORY_PAGE_SIZE = 30
     private var historyCurrentPage = 0
     private var historyTotalPage = 0
-    private var historyDialog: AlertDialog? = null
+    private var historyDialog: Dialog? = null
+
     private var isHistoryDialogShowing = false
 
     private var isFastClick = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val clickInterval = 600L
 
+    // 动态申请 读取外部存储权限（读取词典db必需）
+    private val REQUEST_STORAGE_PERM = 1001
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // ========== 新增开始 ==========
+        // 检查读取SD卡权限
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
+                REQUEST_STORAGE_PERM
+            )
+        }
+        // ========== 新增结束 ==========
+
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!android.os.Environment.isExternalStorageManager()) {
@@ -243,16 +266,21 @@ class MainActivity : Activity() {
         tvResult.text = spannable
     }
 
+
+
+
+
     private fun showHistoryDialog() {
         val totalCount = dbHelper.getHistoryTotalCount()
         historyCurrentPage = 0
         historyTotalPage = if (totalCount == 0) 0 else (totalCount + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
 
-        val rootView = layoutInflater.inflate(R.layout.history_dialog_layout, null)
-        val gvHistory = rootView.findViewById<GridView>(R.id.gv_history)
-        val tvHistoryPage = rootView.findViewById<TextView>(R.id.tv_history_page)
-        val btnHistoryPrev = rootView.findViewById<Button>(R.id.btn_history_prev)
-        val btnHistoryNext = rootView.findViewById<Button>(R.id.btn_history_next)
+        // 加载你新建的完整弹窗布局 dialog_history_full.xml
+        val dialogLayout = layoutInflater.inflate(R.layout.dialog_history_full, null)
+        val gvHistory = dialogLayout.findViewById<GridView>(R.id.gv_history)
+        val tvHistoryPage = dialogLayout.findViewById<TextView>(R.id.tv_history_page)
+        val btnHistoryPrev = dialogLayout.findViewById<Button>(R.id.btn_history_prev)
+        val btnHistoryNext = dialogLayout.findViewById<Button>(R.id.btn_history_next)
 
         gvHistory.isVerticalScrollBarEnabled = false
         gvHistory.isHorizontalScrollBarEnabled = false
@@ -295,21 +323,24 @@ class MainActivity : Activity() {
             }
         }
 
-        val dialogBuilder = AlertDialog.Builder(this)
-            .setTitle("查询历史")
-            .setView(rootView)
-            .setCancelable(true)
-
-        historyDialog = dialogBuilder.create()
+        // 改用 Dialog，完全自定义，无系统分割线
+        historyDialog = Dialog(this)
+        historyDialog?.setContentView(dialogLayout)
+        historyDialog?.setCancelable(true)
+        historyDialog?.window?.setBackgroundDrawableResource(android.R.drawable.screen_background_light)
         historyDialog?.show()
-        isHistoryDialogShowing = true
 
+        isHistoryDialogShowing = true
         historyDialog?.setOnDismissListener {
             isHistoryDialogShowing = false
         }
 
+        // 首次加载第一页
         loadHistoryPage()
     }
+
+
+
 
     private fun updatePageNum() {
         tvPageNum.text = "${currentPage + 1} / $totalPage"
@@ -417,6 +448,24 @@ class MainActivity : Activity() {
 
         return super.onKeyDown(keyCode, event)
     }
+
+    // 权限申请结果回调
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_STORAGE_PERM) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // 权限通过，继续加载词典
+                checkDbReady()
+            } else {
+                tvResult.text = "请授予存储权限，否则无法加载词典"
+            }
+        }
+    }
+
 
     override fun onDestroy() {
         super.onDestroy()
