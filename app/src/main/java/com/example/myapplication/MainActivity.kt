@@ -31,14 +31,23 @@ class MainActivity : Activity() {
     private lateinit var btnNext: Button
     private lateinit var tvPageNum: TextView
     private lateinit var btnHistory: Button
+    // 新增：前进、后退按钮
+    private lateinit var btnBack: Button
+    private lateinit var btnForward: Button
+
     private lateinit var dbHelper: DictDbHelper
 
-    // 分页配置：每页固定 14 行
+    // 分页配置：每页14行
     private val PAGE_LINE_COUNT = 14
-    // 所有结果合并后的 行列表（按换行分割）
     private var allLineList = mutableListOf<String>()
     private var currentPage = 0
     private var totalPage = 0
+
+    // ========== 单词浏览前进/后退 核心变量 ==========
+    // 访问历史栈：按点击/查询顺序存储单词
+    private val browseStack = mutableListOf<String>()
+    // 当前在栈中的索引
+    private var browseIndex = -1
 
     private var isFastClick = false
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -48,6 +57,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Android11+ 文件权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!android.os.Environment.isExternalStorageManager()) {
                 val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
@@ -56,6 +66,7 @@ class MainActivity : Activity() {
             }
         }
 
+        // 绑定控件
         etInput = findViewById(R.id.et_input)
         btnQuery = findViewById(R.id.btn_query)
         tvResult = findViewById(R.id.tv_result)
@@ -63,6 +74,8 @@ class MainActivity : Activity() {
         btnNext = findViewById(R.id.btn_next)
         tvPageNum = findViewById(R.id.tv_page_num)
         btnHistory = findViewById(R.id.btn_history)
+        btnBack = findViewById(R.id.btn_back)
+        btnForward = findViewById(R.id.btn_forward)
 
         dbHelper = DictDbHelper(this)
         tvResult.movementMethod = LinkMovementMethod.getInstance()
@@ -70,15 +83,19 @@ class MainActivity : Activity() {
 
         updatePageNum()
         updatePageBtnState()
+        // 初始化前进后退按钮状态
+        updateBrowseBtnState()
 
+        // 查询按钮
         btnQuery.setOnClickListener {
             if (!isFastClick) {
                 isFastClick = true
-                doQuery()
+                doQuery(false)
                 mainHandler.postDelayed({ isFastClick = false }, clickInterval)
             }
         }
 
+        // 上一页
         btnPrev.setOnClickListener {
             if (!isFastClick && currentPage > 0) {
                 isFastClick = true
@@ -90,6 +107,7 @@ class MainActivity : Activity() {
             }
         }
 
+        // 下一页
         btnNext.setOnClickListener {
             if (!isFastClick && currentPage < totalPage - 1) {
                 isFastClick = true
@@ -101,11 +119,34 @@ class MainActivity : Activity() {
             }
         }
 
+        // 历史记录
         btnHistory.setOnClickListener {
             if (!isFastClick) {
                 isFastClick = true
                 showHistoryDialog()
                 mainHandler.postDelayed({ isFastClick = false }, clickInterval)
+            }
+        }
+
+        // 后退按钮
+        btnBack.setOnClickListener {
+            if (browseIndex > 0) {
+                browseIndex--
+                val word = browseStack[browseIndex]
+                etInput.setText(word)
+                doQuery(true)
+                updateBrowseBtnState()
+            }
+        }
+
+        // 前进按钮
+        btnForward.setOnClickListener {
+            if (browseIndex < browseStack.size - 1) {
+                browseIndex++
+                val word = browseStack[browseIndex]
+                etInput.setText(word)
+                doQuery(true)
+                updateBrowseBtnState()
             }
         }
 
@@ -122,7 +163,10 @@ class MainActivity : Activity() {
         }, 800)
     }
 
-    private fun doQuery() {
+    /**
+     * @param isJump true=前进/后退跳转查询，不再新增栈；false=手动/点击单词，新增栈
+     */
+    private fun doQuery(isJump: Boolean) {
         val input = etInput.text.toString().trim()
         if (input.isEmpty()) {
             tvResult.text = "请输入英文单词"
@@ -133,17 +177,25 @@ class MainActivity : Activity() {
             return
         }
 
+        // 非跳转操作：压入浏览历史栈
+        if (!isJump) {
+            // 清除当前索引之后的历史（类似浏览器新访问清空前进记录）
+            if (browseIndex != browseStack.size - 1) {
+                while (browseStack.size > browseIndex + 1) {
+                    browseStack.removeLast()
+                }
+            }
+            browseStack.add(input)
+            browseIndex = browseStack.size - 1
+            updateBrowseBtnState()
+        }
+
         Thread {
-            // 1. 查询所有词典结果
             val dictResultList = dbHelper.queryWordWithDict(input)
-            // 2. 拼接所有结果为一整段文本
-            val allText = dictResultList.joinToString(separator = "\n\n\n\n")
-            // 3. 按换行分割成单行列表，用于按行分页
+            val allText = dictResultList.joinToString(separator = "\n\n")
             allLineList = allText.split("\n").toMutableList()
-            // 过滤空行，避免空白占位
             allLineList.removeAll { it.isBlank() }
 
-            // 4. 计算总页数
             totalPage = if (allLineList.isEmpty()) {
                 0
             } else {
@@ -151,11 +203,9 @@ class MainActivity : Activity() {
             }
             currentPage = 0
 
-            // 5. 更新UI
             runOnUiThread {
                 if (allLineList.isEmpty()) {
                     tvResult.text = "未查询到该单词"
-                    updatePageNum()
                     updatePageNum()
                     updatePageBtnState()
                     return@runOnUiThread
@@ -168,11 +218,9 @@ class MainActivity : Activity() {
         }.start()
     }
 
-    // 展示当前页：截取 14 行数据
     private fun showCurrentPage() {
         val startIndex = currentPage * PAGE_LINE_COUNT
         val endIndex = startIndex + PAGE_LINE_COUNT
-        // 截取当前页行范围
         val pageLines = if (endIndex >= allLineList.size) {
             allLineList.subList(startIndex, allLineList.size)
         } else {
@@ -180,7 +228,6 @@ class MainActivity : Activity() {
         }
         val pageContent = pageLines.joinToString("\n")
 
-        // 单词点击高亮
         val spannable = SpannableString(pageContent)
         val wordRegex = Regex("[a-zA-Z]+")
         val matches = wordRegex.findAll(pageContent)
@@ -188,13 +235,14 @@ class MainActivity : Activity() {
             val clickSpan = object : ClickableSpan() {
                 override fun onClick(widget: View) {
                     etInput.setText(match.value)
-                    doQuery()
+                    // 点击单词：走正常查询，新增历史栈
+                    doQuery(false)
                 }
 
                 override fun updateDrawState(ds: TextPaint) {
                     super.updateDrawState(ds)
                     ds.color = 0xFF000000.toInt()
-                    ds.isUnderlineText = false
+                    ds.isUnderlineText = false // 取消下划线
                 }
             }
             spannable.setSpan(
@@ -216,7 +264,7 @@ class MainActivity : Activity() {
         listView.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
             val word = historyList[position]
             etInput.setText(word)
-            doQuery()
+            doQuery(false)
         }
 
         AlertDialog.Builder(this)
@@ -234,6 +282,12 @@ class MainActivity : Activity() {
     private fun updatePageBtnState() {
         btnPrev.isEnabled = currentPage > 0
         btnNext.isEnabled = currentPage < totalPage - 1
+    }
+
+    // 更新前进、后退按钮可用状态
+    private fun updateBrowseBtnState() {
+        btnBack.isEnabled = browseIndex > 0
+        btnForward.isEnabled = browseIndex < browseStack.size - 1
     }
 
     override fun onDestroy() {

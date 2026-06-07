@@ -40,13 +40,10 @@ class DictDbHelper(private val context: Context) {
         val resultList = mutableListOf<String>()
         if (!isReady || db == null) return resultList
 
-        val lowerWord = word.lowercase()   // 转为小写
-
-        val cursor = db!!.rawQuery("SELECT dict_name, explain FROM word_dict WHERE word = ?", arrayOf(lowerWord))
+        val cursor = db!!.rawQuery("SELECT dict_name, explain FROM word_dict WHERE word = ?", arrayOf(word))
         while (cursor.moveToNext()) {
             val name = cursor.getString(0)
             val explain = cursor.getString(1)
-            // 单条格式：词典名 + 释义
             resultList.add("【$name】\n$explain")
         }
         cursor.close()

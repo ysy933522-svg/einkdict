@@ -10,8 +10,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:spacing="10dp">
+        android:orientation="horizontal">
 
         <EditText
             android:id="@+id/et_input"
@@ -39,7 +38,7 @@
             android:textSize="17sp" />
     </LinearLayout>
 
-    <!-- 结果展示区域，放大字体 -->
+    <!-- 结果展示区域 -->
     <TextView
         android:id="@+id/tv_result"
         android:layout_width="match_parent"
@@ -47,10 +46,10 @@
         android:layout_weight="1"
         android:layout_marginTop="15dp"
         android:gravity="top"
-        android:textSize="24sp"
-        android:lineSpacingExtra="3dp" />
+        android:textSize="22sp"
+        android:lineSpacingExtra="4dp" />
 
-    <!-- 分页按钮 + 页码 置于右下角 -->
+    <!-- 分页+前进后退按钮 右下角对齐 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -58,11 +57,26 @@
         android:gravity="end"
         android:orientation="horizontal">
 
+        <Button
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="后退"
+            android:textSize="17sp" />
+
+        <Button
+            android:id="@+id/btn_forward"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="前进"
+            android:textSize="17sp" />
+
         <TextView
             android:id="@+id/tv_page_num"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="15dp"
+            android:layout_marginHorizontal="15dp"
             android:text="0 / 0"
             android:textSize="17sp" />
 
