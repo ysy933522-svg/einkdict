@@ -17,8 +17,6 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import DictDbHelper
-import android.graphics.drawable.Drawable
 import androidx.core.content.ContextCompat
 
 class HistoryActivity : Activity() {

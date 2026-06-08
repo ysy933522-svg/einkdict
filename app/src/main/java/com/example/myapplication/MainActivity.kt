@@ -1,6 +1,5 @@
 package com.example.myapplication
 
-import DictDbHelper
 import android.app.Activity
 import android.content.Intent
 import android.graphics.Color
@@ -28,8 +27,15 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.inputmethod.InputMethodManager
 import android.content.Context
+import android.widget.LinearLayout
+import kotlin.math.max
+import kotlin.math.min
 
 class MainActivity : Activity() {
+
+    // 在 MainActivity 类中添加以下方法和变量
+    private lateinit var pageIndicator: LinearLayout
+    private var pageButtons = mutableListOf<Button>()
 
     private lateinit var etInput: EditText
     private lateinit var btnQuery: Button
@@ -94,6 +100,7 @@ class MainActivity : Activity() {
         btnBack = findViewById(R.id.btn_back)
         btnForward = findViewById(R.id.btn_forward)
         btnClear = findViewById(R.id.btn_clear)  // 新增
+        pageIndicator = findViewById(R.id.page_indicator)
 
         dbHelper = DictDbHelper(this)
         tvResult.movementMethod = LinkMovementMethod.getInstance()
@@ -168,6 +175,7 @@ class MainActivity : Activity() {
                 showCurrentPage()
                 updatePageBtnState()
                 updatePageNum()
+                updatePageIndicator()  // 更新页码指示器
                 mainHandler.postDelayed({ isFastClick = false }, clickInterval)
             }
         }
@@ -179,6 +187,7 @@ class MainActivity : Activity() {
                 showCurrentPage()
                 updatePageBtnState()
                 updatePageNum()
+                updatePageIndicator()  // 更新页码指示器
                 mainHandler.postDelayed({ isFastClick = false }, clickInterval)
             }
         }
@@ -215,6 +224,82 @@ class MainActivity : Activity() {
 
         checkDbReady()
     }
+
+
+    // 添加更新页码指示器的方法
+    private fun updatePageIndicator() {
+        // 清空现有的页码按钮
+        pageIndicator.removeAllViews()
+        pageButtons.clear()
+
+        if (totalPage <= 0) return
+
+        // 计算要显示的页码范围
+        val startPage = max(0, currentPage - 5)
+        val endPage = min(totalPage - 1, currentPage + 5)
+
+        // 如果需要，添加"..."按钮
+        if (startPage > 0) {
+            val ellipsisBtn = createPageButton(-1, "...")
+            pageIndicator.addView(ellipsisBtn)
+        }
+
+        // 添加页码按钮
+        for (page in startPage..endPage) {
+            val pageBtn = createPageButton(page, "${page + 1}")
+            pageIndicator.addView(pageBtn)
+            pageButtons.add(pageBtn)
+        }
+
+        // 如果需要，添加后面的"..."按钮
+        if (endPage < totalPage - 1) {
+            val ellipsisBtn = createPageButton(-2, "...")
+            pageIndicator.addView(ellipsisBtn)
+        }
+    }
+
+    // 创建页码按钮
+    private fun createPageButton(page: Int, text: String): Button {
+        val button = Button(this)
+        button.text = text
+        button.textSize = 16f
+        button.background = null
+        button.setPadding(12, 8, 12, 8)
+        button.minWidth = 0
+        button.minimumWidth = 0
+
+        if (page >= 0) {
+            // 是真正的页码按钮
+            if (page == currentPage) {
+                // 当前页，用黑色
+                button.setTextColor(Color.BLACK)
+            } else {
+                // 非当前页，用灰色
+                button.setTextColor(Color.GRAY)
+            }
+
+            button.setOnClickListener {
+                if (!isFastClick && page != currentPage) {
+                    isFastClick = true
+                    currentPage = page
+                    showCurrentPage()
+                    updatePageBtnState()
+                    updatePageNum()
+                    updatePageIndicator()  // 更新页码指示器
+                    mainHandler.postDelayed({ isFastClick = false }, clickInterval)
+                }
+            }
+        } else {
+            // 是"..."按钮，禁用点击
+            button.setTextColor(Color.GRAY)
+            button.isEnabled = false
+        }
+
+        return button
+    }
+
+
+    
     // 添加清除输入框的方法
     private fun clearInput() {
         etInput.setText("")
@@ -285,12 +370,14 @@ class MainActivity : Activity() {
                     tvResult.text = "未查询到该单词"
                     updatePageNum()
                     updatePageBtnState()
+                    updatePageIndicator()  // 更新页码指示器
                     return@runOnUiThread
                 }
                 dbHelper.addHistory(input)
                 showCurrentPage()
                 updatePageBtnState()
                 updatePageNum()
+                updatePageIndicator()  // 更新页码指示器
             }
         }.start()
     }

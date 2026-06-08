@@ -110,29 +110,29 @@
                 android:background="@null"
                 android:textColor="#000000"/>
 
-            <TextView
-                android:id="@+id/tv_page_num"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="15dp"
-                android:text="0 / 0"
-                android:textSize="17sp"
-                android:textColor="#000000"/>
-
             <Button
                 android:id="@+id/btn_prev"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
                 android:text="上一页"
                 android:textSize="17sp"
                 android:background="@null"
+                android:textColor="#000000"/>
+
+            <TextView
+                android:id="@+id/tv_page_num"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="8dp"
+                android:text="0 / 0"
+                android:textSize="16sp"
                 android:textColor="#000000"/>
 
             <Button
                 android:id="@+id/btn_next"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
                 android:text="下一页"
                 android:textSize="17sp"
                 android:background="@null"
@@ -140,5 +140,23 @@
         </LinearLayout>
 
     </LinearLayout>
+
+    <!-- 新增：页码按钮行 -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none"
+        android:fadeScrollbars="false">
+
+        <LinearLayout
+            android:id="@+id/page_indicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:padding="4dp"/>
+
+    </HorizontalScrollView>
 
 </LinearLayout>
