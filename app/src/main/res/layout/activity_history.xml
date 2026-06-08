@@ -5,35 +5,28 @@
     android:orientation="vertical"
     android:background="#FFFFFF">
 
-    <!-- 标题栏 -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:gravity="center_vertical">
+<!--    &lt;!&ndash; 标题栏（白底黑字） &ndash;&gt;-->
+<!--    <LinearLayout-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:orientation="horizontal"-->
+<!--        android:padding="8dp"-->
+<!--        android:gravity="center_vertical">-->
 
-        <Button
-            android:id="@+id/btn_back"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="返回"
-            android:textSize="16sp"
-            android:background="@null"
-            android:textColor="#000000"/>
 
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="查询历史"
-            android:textColor="#000000"
-            android:textSize="17sp"
-            android:gravity="center"/>
 
-    </LinearLayout>
+<!--        <TextView-->
+<!--            android:layout_width="0dp"-->
+<!--            android:layout_height="wrap_content"-->
+<!--            android:layout_weight="1"-->
+<!--            android:text="查询历史"-->
+<!--            android:textColor="#000000"-->
+<!--            android:textSize="17sp"-->
+<!--            android:gravity="center"/>-->
 
-    <!-- 历史列表 - 不设置 scrollbars 属性，在代码中控制 -->
+<!--    </LinearLayout>-->
+
+    <!-- 历史列表（占满剩余空间） -->
     <GridView
         android:id="@+id/gv_history"
         android:layout_width="match_parent"
@@ -46,40 +39,95 @@
         android:listSelector="@android:color/transparent"
         android:background="#FFFFFF"/>
 
-    <!-- 分页栏 -->
+    <!-- 底部操作栏：左边是清除/导出，右边是分页 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
-        android:gravity="center"
+        android:layout_marginBottom="8dp"
+        android:paddingHorizontal="12dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <Button
-            android:id="@+id/btn_history_prev"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="上一页"
-            android:textSize="15sp"
-            android:background="@null"
-            android:textColor="#000000"/>
 
-        <TextView
-            android:id="@+id/tv_history_page"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="20dp"
-            android:text="0 / 0"
-            android:textSize="15sp"
-            android:textColor="#000000"/>
 
-        <Button
-            android:id="@+id/btn_history_next"
+
+
+        <!-- 左侧：清除和导出按钮 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="start">
+
+            <Button
+                android:id="@+id/btn_back"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="返回"
+                android:textSize="15sp"
+                android:background="@null"
+                android:textColor="#000000"/>
+
+
+            <Button
+                android:id="@+id/btn_clear_history"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="1dp"
+                android:text="清除"
+                android:textSize="15sp"
+                android:background="@null"
+                android:textColor="#000000"/>
+
+            <Button
+                android:id="@+id/btn_export_history"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="1dp"
+                android:text="导出"
+                android:textSize="15sp"
+                android:background="@null"
+                android:textColor="#000000"/>
+
+        </LinearLayout>
+
+        <!-- 右侧：分页控件 -->
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="下一页"
-            android:textSize="15sp"
-            android:background="@null"
-            android:textColor="#000000"/>
+            android:orientation="horizontal"
+            android:gravity="end">
+
+            <Button
+                android:id="@+id/btn_history_prev"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="上一页"
+                android:textSize="15sp"
+                android:background="@null"
+                android:textColor="#000000"/>
+
+            <TextView
+                android:id="@+id/tv_history_page"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginHorizontal="12dp"
+                android:text="0 / 0"
+                android:textSize="15sp"
+                android:textColor="#000000"/>
+
+            <Button
+                android:id="@+id/btn_history_next"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="下一页"
+                android:textSize="15sp"
+                android:background="@null"
+                android:textColor="#000000"/>
+        </LinearLayout>
+
     </LinearLayout>
 
 </LinearLayout>

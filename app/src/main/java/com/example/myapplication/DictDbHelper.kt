@@ -110,4 +110,30 @@ class DictDbHelper(private val context: Context) {
     fun close() {
         db?.close()
     }
+
+
+    // 在 DictDbHelper 类中添加以下方法：
+
+    // 清除所有历史记录
+    fun clearAllHistory() {
+        val hDb = getHistoryDb()
+        hDb.execSQL("DELETE FROM search_history")
+        hDb.close()
+    }
+
+    // 获取所有历史记录（用于导出）
+    fun getAllHistory(): MutableList<String> {
+        val list = mutableListOf<String>()
+        val hDb = getHistoryDb()
+        val cursor = hDb.rawQuery("SELECT word FROM search_history ORDER BY id DESC", null)
+        while (cursor.moveToNext()) {
+            list.add(cursor.getString(0))
+        }
+        cursor.close()
+        hDb.close()
+        return list
+    }
+
+
+
 }

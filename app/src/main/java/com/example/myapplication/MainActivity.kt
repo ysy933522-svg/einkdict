@@ -23,6 +23,11 @@ import android.content.pm.PackageManager
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+// 在文件顶部添加导入
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.inputmethod.InputMethodManager
+import android.content.Context
 
 class MainActivity : Activity() {
 
@@ -35,6 +40,8 @@ class MainActivity : Activity() {
     private lateinit var btnHistory: Button
     private lateinit var btnBack: Button
     private lateinit var btnForward: Button
+
+    private lateinit var btnClear: Button
 
     private lateinit var dbHelper: DictDbHelper
 
@@ -86,6 +93,7 @@ class MainActivity : Activity() {
         btnHistory = findViewById(R.id.btn_history)
         btnBack = findViewById(R.id.btn_back)
         btnForward = findViewById(R.id.btn_forward)
+        btnClear = findViewById(R.id.btn_clear)  // 新增
 
         dbHelper = DictDbHelper(this)
         tvResult.movementMethod = LinkMovementMethod.getInstance()
@@ -99,10 +107,51 @@ class MainActivity : Activity() {
         tvResult.isClickable = true
         tvResult.movementMethod = LinkMovementMethod.getInstance()
 
+        // 设置清除按钮点击事件
+        btnClear.setOnClickListener {
+            clearInput()
+        }
 
         updatePageNum()
         updatePageBtnState()
         updateBrowseBtnState()
+
+
+        // 设置清除按钮点击事件
+        btnClear.setOnClickListener {
+            clearInput()
+        }
+
+        // 设置输入框文本变化监听，控制清除按钮的显示/隐藏
+        etInput.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                // 不需要实现
+            }
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                // 文本变化时控制清除按钮的可见性
+                btnClear.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
+            }
+
+            override fun afterTextChanged(s: Editable?) {
+                // 不需要实现
+            }
+        })
+
+        // 设置回车键监听
+        etInput.setOnKeyListener { _, keyCode, event ->
+            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+                // 防止快速重复点击
+                if (!isFastClick) {
+                    isFastClick = true
+                    doQuery(false)
+                    mainHandler.postDelayed({ isFastClick = false }, clickInterval)
+                }
+                return@setOnKeyListener true  // 消耗事件
+            }
+            false
+        }
+
 
         btnQuery.setOnClickListener {
             if (!isFastClick) {
@@ -165,6 +214,15 @@ class MainActivity : Activity() {
         }
 
         checkDbReady()
+    }
+    // 添加清除输入框的方法
+    private fun clearInput() {
+        etInput.setText("")
+        etInput.requestFocus()  // 焦点回到输入框
+
+        // 显示软键盘
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(etInput, InputMethodManager.SHOW_IMPLICIT)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
