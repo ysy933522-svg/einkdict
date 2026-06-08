@@ -235,8 +235,8 @@ class MainActivity : Activity() {
         if (totalPage <= 0) return
 
         // 计算要显示的页码范围
-        val startPage = max(0, currentPage - 5)
-        val endPage = min(totalPage - 1, currentPage + 5)
+        val startPage = max(0, currentPage - 8)
+        val endPage = min(totalPage - 1, currentPage + 8)
 
         // 如果需要，添加"..."按钮
         if (startPage > 0) {
