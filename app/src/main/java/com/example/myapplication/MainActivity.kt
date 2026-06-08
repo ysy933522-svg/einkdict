@@ -91,6 +91,15 @@ class MainActivity : Activity() {
         tvResult.movementMethod = LinkMovementMethod.getInstance()
         tvResult.text = "词典加载中，请稍候..."
 
+
+        // 禁用所有点击效果
+        tvResult.isClickable = true
+        tvResult.isLongClickable = false
+        tvResult.setHighlightColor(Color.TRANSPARENT)  // 设置高亮颜色为透明
+        tvResult.isClickable = true
+        tvResult.movementMethod = LinkMovementMethod.getInstance()
+
+
         updatePageNum()
         updatePageBtnState()
         updateBrowseBtnState()

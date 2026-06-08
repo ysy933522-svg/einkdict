@@ -26,8 +26,16 @@ class HistoryActivity : Activity() {
     private var historyCurrentPage = 0
     private var historyTotalPage = 0
 
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // ★ 关键：先把window填成纯白，再setContentView
+        // 这样framebuffer从"词典页残影"→"白"→"白+文字" 变成 "白+文字"一步到位
+        // 驱动看到的变化区域就只是文字部分，不再是整屏替换
+        window.setBackgroundDrawableResource(android.R.color.white)
+        window.setFormat(android.graphics.PixelFormat.RGB_565) // 减composition复杂度
+
         setContentView(R.layout.activity_history)
 
         dbHelper = DictDbHelper(this)
@@ -37,36 +45,29 @@ class HistoryActivity : Activity() {
         btnHistoryNext = findViewById(R.id.btn_history_next)
         btnBack = findViewById(R.id.btn_back)
 
-        // 初始化数据
+        // 确保无任何滚动条触发额外draw
+        gvHistory.isScrollbarFadingEnabled = false
+        // gvHistory.scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY // 不加，保持none
+
         val totalCount = dbHelper.getHistoryTotalCount()
         historyCurrentPage = 0
         historyTotalPage = if (totalCount == 0) 0 else (totalCount + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
 
-        // 加载当前页数据
         loadHistoryPage()
 
-        // 上一页
         btnHistoryPrev.setOnClickListener {
-            if (historyCurrentPage > 0) {
-                historyCurrentPage--
-                loadHistoryPage()
-            }
+            if (historyCurrentPage > 0) { historyCurrentPage--; loadHistoryPage() }
         }
-
-        // 下一页
         btnHistoryNext.setOnClickListener {
-            if (historyCurrentPage < historyTotalPage - 1) {
-                historyCurrentPage++
-                loadHistoryPage()
-            }
+            if (historyCurrentPage < historyTotalPage - 1) { historyCurrentPage++; loadHistoryPage() }
         }
-
-        // 返回按钮
         btnBack.setOnClickListener {
             setResult(RESULT_CANCELED)
             finish()
         }
     }
+
+
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -75,6 +76,7 @@ class HistoryActivity : Activity() {
         loadHistoryPage()
     }
 
+
     private fun loadHistoryPage() {
         val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
         val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
@@ -82,59 +84,50 @@ class HistoryActivity : Activity() {
 
         tvHistoryPage.text = "${historyCurrentPage + 1} / $historyTotalPage"
 
-        val canHPrev = historyCurrentPage > 0
-        val canHNext = historyCurrentPage < historyTotalPage - 1
+        val canPrev = historyCurrentPage > 0
+        val canNext = historyCurrentPage < historyTotalPage - 1
+        btnHistoryPrev.isEnabled = canPrev
+        btnHistoryNext.isEnabled = canNext
+        btnHistoryPrev.setTextColor(if (canPrev) 0xFF000000.toInt() else 0xFF888888.toInt())
+        btnHistoryNext.setTextColor(if (canNext) 0xFF000000.toInt() else 0xFF888888.toInt())
 
-        btnHistoryPrev.isEnabled = canHPrev
-        btnHistoryNext.isEnabled = canHNext
+        gvHistory.onItemClickListener = AdapterView.OnItemClickListener { _, _, pos, _ ->
 
-        btnHistoryPrev.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
-        btnHistoryNext.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
 
-        // 点击条目返回主界面并查询
-        gvHistory.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
-            val word = pageData[position]
-            val resultIntent = Intent()
-            resultIntent.putExtra("SELECTED_WORD", word)
-            setResult(RESULT_OK, resultIntent)
+            val word = pageData[pos]
+            val intent = Intent().putExtra("SELECTED_WORD", word)
+            setResult(RESULT_OK, intent)
             finish()
         }
     }
 
-    // 处理按键事件（支持遥控器/翻页笔）
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (event.repeatCount > 0) {
-            return super.onKeyDown(keyCode, event)
-        }
 
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (event?.repeatCount ?: 1 > 0) return super.onKeyDown(keyCode, event)
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_VOLUME_UP,
             KeyEvent.KEYCODE_PAGE_DOWN -> {
-                if (historyCurrentPage < historyTotalPage - 1) {
-                    historyCurrentPage++
-                    loadHistoryPage()
-                }
+                if (historyCurrentPage < historyTotalPage - 1) { historyCurrentPage++; loadHistoryPage() }
                 return true
             }
-
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_VOLUME_DOWN,
             KeyEvent.KEYCODE_PAGE_UP -> {
-                if (historyCurrentPage > 0) {
-                    historyCurrentPage--
-                    loadHistoryPage()
-                }
+                if (historyCurrentPage > 0) { historyCurrentPage--; loadHistoryPage() }
                 return true
             }
-
-            KeyEvent.KEYCODE_BACK -> {
-                setResult(RESULT_CANCELED)
-                finish()
-                return true
-            }
+            KeyEvent.KEYCODE_BACK -> { setResult(RESULT_CANCELED); finish(); return true }
         }
-
         return super.onKeyDown(keyCode, event)
     }
+
+
+
+
+    // 处理按键事件（支持遥控器/翻页笔）
+
+
+
 }

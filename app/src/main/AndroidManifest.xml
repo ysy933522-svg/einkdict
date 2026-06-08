@@ -23,12 +23,11 @@
             </intent-filter>
         </activity>
 
-        <!-- 历史Activity - 跟随系统方向 -->
         <activity
             android:name=".HistoryActivity"
-            android:theme="@android:style/Theme.Light.NoTitleBar"
+            android:theme="@style/ThemeHistoryEink"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden" /> <!-- 处理方向变化 -->
+            android:configChanges="orientation|screenSize|keyboardHidden" />
 
     </application>
 

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="ThemeHistoryEink" parent="@android:style/Theme.Light.NoTitleBar">
+        <!-- 启动窗口直接是纯白，和你的页面底色一样 → 驱动不觉得"整屏变了" -->
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowEnterAnimation">@null</item>
+        <item name="android:windowExitAnimation">@null</item>
+        <!-- 关掉window级别的drawable叠加 -->
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
+</resources>
