@@ -2,7 +2,6 @@ package com.example.myapplication
 
 import DictDbHelper
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
@@ -17,17 +16,13 @@ import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.view.KeyEvent
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
-import android.widget.GridView
 import android.widget.TextView
 import android.content.pm.PackageManager
-import android.view.LayoutInflater
+import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import android.app.Dialog
 
 class MainActivity : Activity() {
 
@@ -51,13 +46,6 @@ class MainActivity : Activity() {
     private val browseStack = mutableListOf<String>()
     private var browseIndex = -1
 
-    private val HISTORY_PAGE_SIZE = 30
-    private var historyCurrentPage = 0
-    private var historyTotalPage = 0
-    private var historyDialog: Dialog? = null
-
-    private var isHistoryDialogShowing = false
-
     private var isFastClick = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val clickInterval = 600L
@@ -65,11 +53,11 @@ class MainActivity : Activity() {
     // 动态申请 读取外部存储权限（读取词典db必需）
     private val REQUEST_STORAGE_PERM = 1001
 
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // ========== 新增开始 ==========
         // 检查读取SD卡权限
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE)
             != PackageManager.PERMISSION_GRANTED
@@ -80,8 +68,6 @@ class MainActivity : Activity() {
                 REQUEST_STORAGE_PERM
             )
         }
-        // ========== 新增结束 ==========
-
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!android.os.Environment.isExternalStorageManager()) {
@@ -142,7 +128,9 @@ class MainActivity : Activity() {
         btnHistory.setOnClickListener {
             if (!isFastClick) {
                 isFastClick = true
-                showHistoryDialog()
+                // 启动HistoryActivity页面
+                val intent = Intent(this@MainActivity, HistoryActivity::class.java)
+                startActivityForResult(intent, 100)  // 100是请求码
                 mainHandler.postDelayed({ isFastClick = false }, clickInterval)
             }
         }
@@ -170,6 +158,17 @@ class MainActivity : Activity() {
         checkDbReady()
     }
 
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 100 && resultCode == Activity.RESULT_OK) {
+            val selectedWord = data?.getStringExtra("SELECTED_WORD")
+            if (selectedWord != null && selectedWord.isNotBlank()) {
+                etInput.setText(selectedWord)
+                doQuery(false)
+            }
+        }
+    }
+
     private fun checkDbReady() {
         mainHandler.postDelayed({
             if (dbHelper.isReady) {
@@ -180,6 +179,7 @@ class MainActivity : Activity() {
         }, 800)
     }
 
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private fun doQuery(isJump: Boolean) {
         val input = etInput.text.toString().trim()
         if (input.isEmpty()) {
@@ -266,82 +266,6 @@ class MainActivity : Activity() {
         tvResult.text = spannable
     }
 
-
-
-
-
-    private fun showHistoryDialog() {
-        val totalCount = dbHelper.getHistoryTotalCount()
-        historyCurrentPage = 0
-        historyTotalPage = if (totalCount == 0) 0 else (totalCount + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
-
-        // 加载你新建的完整弹窗布局 dialog_history_full.xml
-        val dialogLayout = layoutInflater.inflate(R.layout.dialog_history_full, null)
-        val gvHistory = dialogLayout.findViewById<GridView>(R.id.gv_history)
-        val tvHistoryPage = dialogLayout.findViewById<TextView>(R.id.tv_history_page)
-        val btnHistoryPrev = dialogLayout.findViewById<Button>(R.id.btn_history_prev)
-        val btnHistoryNext = dialogLayout.findViewById<Button>(R.id.btn_history_next)
-
-        gvHistory.isVerticalScrollBarEnabled = false
-        gvHistory.isHorizontalScrollBarEnabled = false
-
-        fun loadHistoryPage() {
-            val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
-            val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
-            gvHistory.adapter = adapter
-
-            tvHistoryPage.text = "${historyCurrentPage + 1} / $historyTotalPage"
-
-            val canHPrev = historyCurrentPage > 0
-            val canHNext = historyCurrentPage < historyTotalPage - 1
-
-            btnHistoryPrev.isEnabled = canHPrev
-            btnHistoryNext.isEnabled = canHNext
-
-            btnHistoryPrev.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
-            btnHistoryNext.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
-
-            gvHistory.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
-                val word = pageData[position]
-                historyDialog?.dismiss()
-                etInput.setText(word)
-                doQuery(false)
-            }
-        }
-
-        btnHistoryPrev.setOnClickListener {
-            if (historyCurrentPage > 0) {
-                historyCurrentPage--
-                loadHistoryPage()
-            }
-        }
-
-        btnHistoryNext.setOnClickListener {
-            if (historyCurrentPage < historyTotalPage - 1) {
-                historyCurrentPage++
-                loadHistoryPage()
-            }
-        }
-
-        // 改用 Dialog，完全自定义，无系统分割线
-        historyDialog = Dialog(this)
-        historyDialog?.setContentView(dialogLayout)
-        historyDialog?.setCancelable(true)
-        historyDialog?.window?.setBackgroundDrawableResource(android.R.drawable.screen_background_light)
-        historyDialog?.show()
-
-        isHistoryDialogShowing = true
-        historyDialog?.setOnDismissListener {
-            isHistoryDialogShowing = false
-        }
-
-        // 首次加载第一页
-        loadHistoryPage()
-    }
-
-
-
-
     private fun updatePageNum() {
         tvPageNum.text = "${currentPage + 1} / $totalPage"
     }
@@ -378,71 +302,25 @@ class MainActivity : Activity() {
             KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_VOLUME_UP,
             KeyEvent.KEYCODE_PAGE_DOWN -> {
-                if (isHistoryDialogShowing) {
-                    if (historyCurrentPage < historyTotalPage - 1) {
-                        historyCurrentPage++
-                        val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
-                        val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
-                        val gvHistory = historyDialog?.findViewById<GridView>(R.id.gv_history)
-                        val tvHistoryPage = historyDialog?.findViewById<TextView>(R.id.tv_history_page)
-                        val btnHistoryPrev = historyDialog?.findViewById<Button>(R.id.btn_history_prev)
-                        val btnHistoryNext = historyDialog?.findViewById<Button>(R.id.btn_history_next)
-
-                        gvHistory?.adapter = adapter
-                        tvHistoryPage?.text = "${historyCurrentPage + 1} / $historyTotalPage"
-
-                        val canHPrev = historyCurrentPage > 0
-                        val canHNext = historyCurrentPage < historyTotalPage - 1
-                        btnHistoryPrev?.isEnabled = canHPrev
-                        btnHistoryNext?.isEnabled = canHNext
-                        btnHistoryPrev?.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
-                        btnHistoryNext?.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
-                    }
-                    return true
-                } else {
-                    if (currentPage < totalPage - 1) {
-                        currentPage++
-                        showCurrentPage()
-                        updatePageBtnState()
-                        updatePageNum()
-                    }
-                    return true
+                if (currentPage < totalPage - 1) {
+                    currentPage++
+                    showCurrentPage()
+                    updatePageBtnState()
+                    updatePageNum()
                 }
+                return true
             }
 
             KeyEvent.KEYCODE_DPAD_UP,
             KeyEvent.KEYCODE_VOLUME_DOWN,
             KeyEvent.KEYCODE_PAGE_UP -> {
-                if (isHistoryDialogShowing) {
-                    if (historyCurrentPage > 0) {
-                        historyCurrentPage--
-                        val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
-                        val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
-                        val gvHistory = historyDialog?.findViewById<GridView>(R.id.gv_history)
-                        val tvHistoryPage = historyDialog?.findViewById<TextView>(R.id.tv_history_page)
-                        val btnHistoryPrev = historyDialog?.findViewById<Button>(R.id.btn_history_prev)
-                        val btnHistoryNext = historyDialog?.findViewById<Button>(R.id.btn_history_next)
-
-                        gvHistory?.adapter = adapter
-                        tvHistoryPage?.text = "${historyCurrentPage + 1} / $historyTotalPage"
-
-                        val canHPrev = historyCurrentPage > 0
-                        val canHNext = historyCurrentPage < historyTotalPage - 1
-                        btnHistoryPrev?.isEnabled = canHPrev
-                        btnHistoryNext?.isEnabled = canHNext
-                        btnHistoryPrev?.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
-                        btnHistoryNext?.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
-                    }
-                    return true
-                } else {
-                    if (currentPage > 0) {
-                        currentPage--
-                        showCurrentPage()
-                        updatePageBtnState()
-                        updatePageNum()
-                    }
-                    return true
+                if (currentPage > 0) {
+                    currentPage--
+                    showCurrentPage()
+                    updatePageBtnState()
+                    updatePageNum()
                 }
+                return true
             }
         }
 
@@ -466,11 +344,8 @@ class MainActivity : Activity() {
         }
     }
 
-
     override fun onDestroy() {
         super.onDestroy()
         dbHelper.close()
-        historyDialog?.dismiss()
-        isHistoryDialogShowing = false
     }
 }
