@@ -136,21 +136,6 @@ class MainActivity : Activity() {
             clearInput()
         }
 
-        // 设置输入框文本变化监听，控制清除按钮的显示/隐藏
-        etInput.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                // 不需要实现
-            }
-
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                // 文本变化时控制清除按钮的可见性
-                btnClear.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
-            }
-
-            override fun afterTextChanged(s: Editable?) {
-                // 不需要实现
-            }
-        })
 
         // 设置回车键监听
         etInput.setOnKeyListener { _, keyCode, event ->
