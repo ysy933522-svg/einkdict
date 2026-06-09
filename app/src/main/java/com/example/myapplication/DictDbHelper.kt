@@ -1,5 +1,6 @@
 package com.example.myapplication
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
@@ -8,6 +9,7 @@ import java.io.File
 class DictDbHelper(private val context: Context) {
     private val TAG = "DictDbHelper"
     // 词典库：保留原有公共路径（只读，你手动放置）
+    @SuppressLint("SdCardPath")
     private val DB_FULL_PATH = "/sdcard/dicts_sqlite_diy_/dict.db"
     private var db: SQLiteDatabase? = null
     var isReady = false
@@ -61,11 +63,12 @@ class DictDbHelper(private val context: Context) {
         val lowerWord = word.lowercase()   // 转为小写
 
 
-        val cursor = db!!.rawQuery("SELECT dict_name, explain FROM word_dict WHERE word = ?", arrayOf(lowerWord))
+        val cursor = db!!.rawQuery("SELECT dict_id, explain, word_tag FROM word_dict WHERE word = ?", arrayOf(lowerWord))
         while (cursor.moveToNext()) {
             val name = cursor.getString(0)
             val explain = cursor.getString(1)
-            resultList.add("【$name】\n$explain")
+            val wordtagg = cursor.getString(2)
+            resultList.add("【$name】  $wordtagg \n$explain")
         }
         cursor.close()
         return resultList
