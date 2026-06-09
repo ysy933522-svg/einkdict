@@ -49,7 +49,7 @@
             android:textSize="25sp"
             android:background="@null"
             android:textColor="#666666"
-            android:visibility="gone"/>
+            android:visibility="visible"/>
     </LinearLayout>
 
     <!-- 中间：结果显示区域 -->

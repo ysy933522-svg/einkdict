@@ -107,6 +107,13 @@ class MainActivity : Activity() {
         tvResult.text = "词典加载中，请稍候..."
 
 
+        // 固定高度，防止 hint 消失时高度变化
+        etInput.setLines(1)
+        etInput.setMaxLines(1)
+        etInput.setHorizontallyScrolling(true)   // 禁止换行
+        etInput.setIncludeFontPadding(false)     // 减少字体内边距
+        etInput.gravity = android.view.Gravity.CENTER_VERTICAL  // 垂直居中
+
         // 禁用所有点击效果
         tvResult.isClickable = true
         tvResult.isLongClickable = false
@@ -228,53 +235,70 @@ class MainActivity : Activity() {
 
     // 添加更新页码指示器的方法
     private fun updatePageIndicator() {
-        // 清空现有的页码按钮
+        // 清空现有按钮
         pageIndicator.removeAllViews()
         pageButtons.clear()
 
         if (totalPage <= 0) return
 
-        // 计算要显示的页码范围
-        val startPage = max(0, currentPage - 8)
-        val endPage = min(totalPage - 1, currentPage + 8)
+        // 计算起始页码和结束页码（包含）
+        val startPage: Int
+        val endPage: Int
 
-        // 如果需要，添加"..."按钮
-        if (startPage > 0) {
-            val ellipsisBtn = createPageButton(-1, "...")
-            pageIndicator.addView(ellipsisBtn)
+        if (totalPage <= 15) {
+            // 总页数不足15页，全部显示
+            startPage = 0
+            endPage = totalPage - 1
+        } else {
+            // 总页数大于15，按当前页位置计算
+            if (currentPage < 7) {
+                // 当前页靠近开头，显示前15页
+                startPage = 0
+                endPage = 14
+            } else if (currentPage >= totalPage - 8) {
+                // 当前页靠近末尾，显示最后15页
+                startPage = totalPage - 15
+                endPage = totalPage - 1
+            } else {
+                // 当前页在中间，前后各7页
+                startPage = currentPage - 7
+                endPage = currentPage + 7
+            }
         }
 
-        // 添加页码按钮
+        // 生成页码按钮
         for (page in startPage..endPage) {
             val pageBtn = createPageButton(page, "${page + 1}")
             pageIndicator.addView(pageBtn)
             pageButtons.add(pageBtn)
         }
-
-        // 如果需要，添加后面的"..."按钮
-        if (endPage < totalPage - 1) {
-            val ellipsisBtn = createPageButton(-2, "...")
-            pageIndicator.addView(ellipsisBtn)
-        }
     }
+
+
 
     // 创建页码按钮
     private fun createPageButton(page: Int, text: String): Button {
         val button = Button(this)
         button.text = text
-        button.textSize = 16f
+        button.textSize = 14f                     // 适当减小字号
         button.background = null
-        button.setPadding(12, 8, 12, 8)
+        button.setPadding(8, 4, 8, 4)             // 减小内边距
         button.minWidth = 0
         button.minimumWidth = 0
+        button.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            // 可以设置外边距使按钮间有间隔
+            marginStart = 4
+            marginEnd = 4
+        }
 
         if (page >= 0) {
-            // 是真正的页码按钮
+            // 真正的页码按钮
             if (page == currentPage) {
-                // 当前页，用黑色
                 button.setTextColor(Color.BLACK)
             } else {
-                // 非当前页，用灰色
                 button.setTextColor(Color.GRAY)
             }
 
@@ -285,12 +309,12 @@ class MainActivity : Activity() {
                     showCurrentPage()
                     updatePageBtnState()
                     updatePageNum()
-                    updatePageIndicator()  // 更新页码指示器
+                    updatePageIndicator()  // 刷新页码指示器
                     mainHandler.postDelayed({ isFastClick = false }, clickInterval)
                 }
             }
         } else {
-            // 是"..."按钮，禁用点击
+            // 原来有省略号逻辑，现在不需要了，但保留以防万一
             button.setTextColor(Color.GRAY)
             button.isEnabled = false
         }
