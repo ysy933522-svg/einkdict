@@ -37,8 +37,11 @@ class DictDbHelper(context: Context) {
                 )
                 Log.d(TAG, "数据库以读写模式打开成功")
 
-                // 创建历史记录表（如果不存在）
-                db?.execSQL("CREATE TABLE IF NOT EXISTS search_history(id INTEGER PRIMARY KEY AUTOINCREMENT, word TEXT UNIQUE)")
+                // 创建历史记录表（如果不存在），增加 create_time 字段
+                db?.execSQL("CREATE TABLE IF NOT EXISTS search_history(" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        "word TEXT UNIQUE, " +
+                        "create_time INTEGER DEFAULT 0)")
                 Log.d(TAG, "历史表创建/确认完成")
 
                 isReady = true
