@@ -171,15 +171,23 @@ class MainActivity : Activity() {
             }
         }
 
+
+
         btnPrev.setOnClickListener {
             if (!isFastClick && currentPage > 0) {
                 isFastClick = true
                 currentPage--
-                showCurrentPage()
-                updatePageBtnState()
-                updatePageNum()
-                updatePageIndicator()  // 更新页码指示器
-                mainHandler.postDelayed({ isFastClick = false }, clickInterval)
+                // 先更新数据，但不立即刷新UI
+                // 延迟50ms再刷新，让墨水屏有时间消化点击事件
+                mainHandler.postDelayed({
+                    showCurrentPage()
+                    updatePageBtnState()
+                    updatePageNum()
+                    updatePageIndicator()
+                    // 强制局部刷新结果区域（可选）
+                    tvResult.invalidate()
+                    isFastClick = false
+                }, 50) // 50毫秒延迟，人眼几乎无感，但能避免闪烁
             }
         }
 
@@ -187,11 +195,14 @@ class MainActivity : Activity() {
             if (!isFastClick && currentPage < totalPage - 1) {
                 isFastClick = true
                 currentPage++
-                showCurrentPage()
-                updatePageBtnState()
-                updatePageNum()
-                updatePageIndicator()  // 更新页码指示器
-                mainHandler.postDelayed({ isFastClick = false }, clickInterval)
+                mainHandler.postDelayed({
+                    showCurrentPage()
+                    updatePageBtnState()
+                    updatePageNum()
+                    updatePageIndicator()
+                    tvResult.invalidate()
+                    isFastClick = false
+                }, 50)
             }
         }
 
@@ -292,7 +303,8 @@ class MainActivity : Activity() {
 
         if (page >= 0) {
             // 始终显示黑色，不区分当前页
-            button.setTextColor(Color.BLACK)
+//            button.setTextColor(Color.BLACK)
+            button.setTextColor(if (page == currentPage) Color.BLACK else Color.GRAY)
             button.isEnabled = true
 
             button.setOnClickListener {
@@ -442,8 +454,16 @@ class MainActivity : Activity() {
     }
 
     private fun updatePageBtnState() {
-        btnPrev.isEnabled = currentPage > 0
-        btnNext.isEnabled = currentPage < totalPage - 1
+        val canPrev = currentPage > 0
+        val canNext = currentPage < totalPage - 1
+
+        // 设置 enabled 控制点击响应（但不再依赖它改变外观）
+        btnPrev.isEnabled = canPrev
+        btnNext.isEnabled = canNext
+
+        // 直接设置颜色，不通过 selector 或 enabled 状态变化触发重绘
+        btnPrev.setTextColor(if (canPrev) Color.BLACK else Color.GRAY)
+        btnNext.setTextColor(if (canNext) Color.BLACK else Color.GRAY)
     }
 
     private fun updateBrowseBtnState() {
