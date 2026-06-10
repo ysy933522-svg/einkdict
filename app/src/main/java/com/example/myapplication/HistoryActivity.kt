@@ -46,6 +46,9 @@ class HistoryActivity : Activity() {
 
         // 使用 Application 单例
         dbHelper = (application as MyApplication).dbHelper
+        // 先刷新缓存（批量写入），再加载历史
+        dbHelper.flushHistory()
+
 
         gvHistory = findViewById(R.id.gv_history)
         tvHistoryPage = findViewById(R.id.tv_history_page)

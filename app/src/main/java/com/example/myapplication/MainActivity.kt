@@ -441,7 +441,7 @@ class MainActivity : Activity() {
                     return@runOnUiThread
                 }
                 try{
-                    dbHelper.addHistory(input)
+                    dbHelper.cacheHistory(input)
                 }catch (e: Exception){
                     e.printStackTrace()
                 }
@@ -574,17 +574,39 @@ class MainActivity : Activity() {
         val queryWord = intent.getStringExtra("QUERY_WORD")
         val fromMemory = intent.getBooleanExtra("FROM_MEMORY", false)
 
-        if (fromMemory) {
-            // 来自背单词页面：按钮变为“返回背单词”
-            btnMemoryEntry.text = "记单词"
-        } else {
-            // 正常启动：按钮保持“记单词”
-            btnMemoryEntry.text = "记单词"
-        }
+        // 更新按钮文本
+//        btnMemoryEntry.text = if (fromMemory) "记单词" else "记单词"
 
         if (queryWord != null && queryWord.isNotBlank()) {
+            // 来自背单词页面：直接查询传入的单词
             etInput.setText(queryWord)
             doQuery(false)
+        } else if (etInput.text.isNullOrBlank()) {
+            // 正常启动且输入框为空：自动加载随机单词
+            loadRandomWord()
         }
+    }
+
+    private fun loadRandomWord() {
+        // 等待记忆数据库就绪
+        if (dbHelper.isMemoryReady) {
+            val randomWord = dbHelper.getRandomWordFromMemory()
+            if (randomWord != null) {
+                etInput.setText(randomWord)
+                doQuery(false)
+            } else {
+                tvResult.text = "记忆库中没有单词，请先导入"
+            }
+        } else {
+            // 数据库未就绪，延迟重试
+            Handler(Looper.getMainLooper()).postDelayed({
+                loadRandomWord()
+            }, 300)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        dbHelper.flushHistory()
     }
 }

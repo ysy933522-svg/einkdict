@@ -86,10 +86,7 @@ class DictDbHelper(context: Context) {
                 if (it.moveToFirst() && it.getInt(0) > 0) isEmpty = false
                 it.close()
             }
-            if (isEmpty) {
-                Log.d(TAG, "word_memory 表为空，插入默认单词数据")
-                insertDefaultWords()
-            }
+
 
             isMemoryReady = true
             Log.d(TAG, "记忆/历史数据库加载完成")
@@ -98,36 +95,7 @@ class DictDbHelper(context: Context) {
         }
     }
 
-    private fun insertDefaultWords() {
-        val defaultWords = listOf(
-            "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "accept", "access",
-            "accident", "account", "achieve", "acknowledge", "acquire", "adapt", "address", "adjust", "admire", "admit",
-            "adopt", "advance", "advantage", "adventure", "affair", "affect", "afford", "afterward", "agency", "aggressive",
-            "agree", "agriculture", "allocate", "alternative", "ambition", "analyze", "announce", "annual", "anxiety", "apparent",
-            "appeal", "appear", "apply", "approach", "appropriate", "argue", "arrange", "article", "aspect", "assess",
-            "assign", "associate", "assume", "atmosphere", "attach", "attempt", "attend", "attitude", "attract", "authority",
-            "available", "average", "avoid", "aware", "balance", "barrier", "behave", "benefit", "bitter", "blame",
-            "blank", "bother", "boundary", "branch", "brand", "breath", "brief", "broad", "budget", "burden",
-            "calculate", "campaign", "capable", "capacity", "capture", "career", "carve", "cast", "category", "cease",
-            "celebrate", "challenge", "character"
-        )
 
-        try {
-            memoryDb?.beginTransaction()
-            for (word in defaultWords) {
-                memoryDb?.execSQL(
-                    "INSERT OR IGNORE INTO word_memory(word, category) VALUES(?, 'CET4')",
-                    arrayOf(word)
-                )
-            }
-            memoryDb?.setTransactionSuccessful()
-            Log.d(TAG, "默认单词插入完成，共 ${defaultWords.size} 个")
-        } catch (e: Exception) {
-            Log.e(TAG, "插入默认单词失败", e)
-        } finally {
-            memoryDb?.endTransaction()
-        }
-    }
 
     // ---------- 对外接口 ----------
 
@@ -217,7 +185,7 @@ class DictDbHelper(context: Context) {
         val list = mutableListOf<WordMemoryItem>()
         if (!isMemoryReady || memoryDb == null) return list
         val cursor = memoryDb!!.rawQuery(
-            "SELECT id, word FROM word_memory WHERE category = ? ORDER BY RANDOM() LIMIT ?",
+            "SELECT id, word FROM word_memory WHERE category = ? ORDER BY strangeness desc  LIMIT ?",
             arrayOf(category, limit.toString())
         )
         while (cursor.moveToNext()) {
@@ -255,6 +223,78 @@ class DictDbHelper(context: Context) {
         isDictReady = false
         isMemoryReady = false
     }
+
+
+
+
+
+    // 历史记录缓存（内存列表）
+    private val pendingHistory = mutableListOf<String>()
+    private val pendingLock = Any()  // 用于线程安全
+
+    /**
+     * 添加历史记录（仅加入缓存，不立即写库）
+     */
+    fun cacheHistory(word: String) {
+        synchronized(pendingLock) {
+            if (!pendingHistory.contains(word)) {  // 避免重复
+                pendingHistory.add(word)
+            }
+        }
+    }
+
+    /**
+     * 将缓存中的历史记录批量写入数据库（事务）
+     */
+    fun flushHistory() {
+        if (!isMemoryReady || memoryDb == null) return
+        val wordsToInsert: List<String>
+        synchronized(pendingLock) {
+            if (pendingHistory.isEmpty()) return
+            wordsToInsert = pendingHistory.toList()
+            pendingHistory.clear()
+        }
+        try {
+            memoryDb!!.beginTransaction()
+            for (word in wordsToInsert) {
+                memoryDb!!.execSQL(
+                    "INSERT OR IGNORE INTO search_history(word, create_time) VALUES(?, ?)",
+                    arrayOf(word, System.currentTimeMillis())
+                )
+            }
+            memoryDb!!.setTransactionSuccessful()
+            Log.d(TAG, "批量写入历史记录 ${wordsToInsert.size} 条")
+        } catch (e: Exception) {
+            Log.e(TAG, "批量写入历史失败", e)
+        } finally {
+            memoryDb!!.endTransaction()
+        }
+    }
+
+    /**
+     * 从 word_memory 表中随机获取一个单词（指定分类可选）
+     */
+    fun getRandomWordFromMemory(category: String? = null): String? {
+        if (!isMemoryReady || memoryDb == null) return null
+        val sql = if (category != null) {
+            "SELECT word FROM word_memory WHERE category = ? ORDER BY strangeness desc LIMIT 1"
+        } else {
+            "SELECT word FROM word_memory ORDER BY strangeness desc LIMIT 1"
+        }
+        val cursor = if (category != null) {
+            memoryDb!!.rawQuery(sql, arrayOf(category))
+        } else {
+            memoryDb!!.rawQuery(sql, null)
+        }
+        var word: String? = null
+        if (cursor.moveToFirst()) {
+            word = cursor.getString(0)
+        }
+        cursor.close()
+        return word
+    }
+
+
 }
 
 /** 单词记忆数据类 */

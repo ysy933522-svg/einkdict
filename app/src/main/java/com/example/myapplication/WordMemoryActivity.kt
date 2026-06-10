@@ -10,78 +10,103 @@ import java.util.*
 
 class WordMemoryActivity : Activity() {
 
-    private lateinit var tvCategory: TextView
-    private lateinit var tvProgress: TextView
     private lateinit var layoutWordGrid: LinearLayout
     private lateinit var tvCurrentWord: TextView
-    private lateinit var tvExplanation: TextView
     private lateinit var btnFamiliar: Button
     private lateinit var btnStrange: Button
     private lateinit var btnUpdate: Button
+    private lateinit var btnSwitch: Button
+    private lateinit var tvProgress: TextView
 
     private lateinit var dbHelper: DictDbHelper
 
     private val TOTAL_WORDS = 100
     private val DISPLAY_COUNT = 20
 
-    // 内存数据
     private var allLoadedWords = mutableListOf<WordMemoryItem>()
     private var pendingQueue = mutableListOf<WordMemoryItem>()
     private var displayedWords = mutableListOf<WordMemoryItem>()
     private var currentSelectedIndex = 0
     private var hasUnsavedChanges = false
 
-    // 存储每一行的引用
     private val rowViews = mutableListOf<LinearLayout>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_word_memory)
 
-        // 全屏（无状态栏）
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
-        tvProgress = findViewById(R.id.tv_progress)
         layoutWordGrid = findViewById(R.id.layout_word_grid)
         tvCurrentWord = findViewById(R.id.tv_current_word)
-        tvExplanation = findViewById(R.id.tv_explanation)
         btnFamiliar = findViewById(R.id.btn_familiar)
         btnStrange = findViewById(R.id.btn_strange)
         btnUpdate = findViewById(R.id.btn_update)
+        btnSwitch = findViewById(R.id.btn_switch)
+        tvProgress = findViewById(R.id.tv_progress)
 
         dbHelper = (application as MyApplication).dbHelper
 
         val category = intent.getStringExtra("CATEGORY") ?: "CET4"
-
-
         loadWords(category)
 
         btnFamiliar.setOnClickListener { onFamiliar() }
         btnStrange.setOnClickListener { onStrange() }
         btnUpdate.setOnClickListener { saveChanges() }
+        btnSwitch.setOnClickListener { reshuffle() }
+
+        // 点击当前选中单词跳转到主页面查词
+        tvCurrentWord.setOnClickListener {
+            if (currentSelectedIndex < displayedWords.size) {
+                val word = displayedWords[currentSelectedIndex].word
+                val intent = Intent(this@WordMemoryActivity, MainActivity::class.java)
+                intent.putExtra("QUERY_WORD", word)
+                intent.putExtra("FROM_MEMORY", true)
+                startActivity(intent)
+            }
+        }
+
     }
 
     private fun loadWords(category: String) {
         allLoadedWords = dbHelper.loadWordsForMemory(category, TOTAL_WORDS)
         if (allLoadedWords.isEmpty()) {
-            Toast.makeText(this, "该分类暂无单词，请先导入", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "该分类暂无单词，请先导入")
             finish()
             return
         }
         allLoadedWords.shuffle()
-        pendingQueue = allLoadedWords.toMutableList()
-
         displayedWords.clear()
-        for (i in 0 until minOf(DISPLAY_COUNT, pendingQueue.size)) {
-            displayedWords.add(pendingQueue.removeAt(0))
+        for (i in 0 until minOf(DISPLAY_COUNT, allLoadedWords.size)) {
+            displayedWords.add(allLoadedWords[i])
+        }
+        pendingQueue.clear()
+        for (i in DISPLAY_COUNT until allLoadedWords.size) {
+            pendingQueue.add(allLoadedWords[i])
         }
 
         buildWordGrid()
-        // 默认选中第一个单词
         if (displayedWords.isNotEmpty()) {
             currentSelectedIndex = 0
             updateCurrentSelection()
         }
+        updateProgress()
+    }
+
+    private fun reshuffle() {
+        if (allLoadedWords.isEmpty()) return
+        val shuffled = allLoadedWords.shuffled()
+        displayedWords.clear()
+        for (i in 0 until minOf(DISPLAY_COUNT, shuffled.size)) {
+            displayedWords.add(shuffled[i])
+        }
+        pendingQueue.clear()
+        for (i in DISPLAY_COUNT until shuffled.size) {
+            pendingQueue.add(shuffled[i])
+        }
+        currentSelectedIndex = 0
+        refreshWordGrid()
+        updateCurrentSelection()
         updateProgress()
     }
 
@@ -101,12 +126,12 @@ class WordMemoryActivity : Activity() {
                 tvWord.layoutParams = LinearLayout.LayoutParams(
                     0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
                 )
-                tvWord.textSize = 17f
+                tvWord.textSize = 35f
                 tvWord.setTextColor(Color.BLACK)
                 tvWord.gravity = Gravity.CENTER
-                tvWord.setPadding(4, 4, 4, 4)
+                tvWord.setPadding(10, 10, 10, 10)
 
-                // ★★★ 在这里添加点击事件 ★★★
+                // 点击跳转到主页面查词
                 tvWord.setOnClickListener {
                     if (index < displayedWords.size) {
                         val word = displayedWords[index].word
@@ -145,32 +170,14 @@ class WordMemoryActivity : Activity() {
 
     private fun updateCurrentSelection() {
         if (currentSelectedIndex < displayedWords.size) {
-            val wordItem = displayedWords[currentSelectedIndex]
-            tvCurrentWord.text = wordItem.word
+            tvCurrentWord.text = displayedWords[currentSelectedIndex].word
             btnFamiliar.isEnabled = true
             btnStrange.isEnabled = true
-
-            // 不再在此处查询释义，而是跳转到主页面
-            // 但保留点击单词跳转的功能（在buildWordGrid中设置）
         } else {
             tvCurrentWord.text = ""
             btnFamiliar.isEnabled = false
             btnStrange.isEnabled = false
         }
-    }
-
-    private fun queryExplanation(word: String) {
-        // 在后台线程查询，结果在主线程更新
-        Thread {
-            val explanations = dbHelper.queryWordWithDict(word)
-            runOnUiThread {
-                if (explanations.isNotEmpty()) {
-                    tvExplanation.text = explanations.joinToString("\n\n")
-                } else {
-                    tvExplanation.text = "（无释义）"
-                }
-            }
-        }.start()
     }
 
     private fun onFamiliar() {
@@ -179,16 +186,13 @@ class WordMemoryActivity : Activity() {
         item.deltaFamiliarity++
         hasUnsavedChanges = true
 
-        // 从显示列表和待显示队列移除
         displayedWords.removeAt(currentSelectedIndex)
         pendingQueue.remove(item)
 
-        // 补充新单词
         if (pendingQueue.isNotEmpty()) {
-            displayedWords.add(pendingQueue.removeAt(0))
+            displayedWords.add(currentSelectedIndex, pendingQueue.removeAt(0))
         }
 
-        // 调整选中索引
         if (currentSelectedIndex >= displayedWords.size && displayedWords.isNotEmpty()) {
             currentSelectedIndex = displayedWords.size - 1
         }
@@ -198,7 +202,7 @@ class WordMemoryActivity : Activity() {
         updateProgress()
 
         if (displayedWords.isEmpty() && pendingQueue.isEmpty()) {
-            Toast.makeText(this, "本轮所有单词已学习完成！", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "本轮所有单词已学习完成")
         }
     }
 
@@ -208,17 +212,13 @@ class WordMemoryActivity : Activity() {
         item.deltaStrangeness++
         hasUnsavedChanges = true
 
-        // 从显示列表移除
         displayedWords.removeAt(currentSelectedIndex)
-        // 放回待显示队列末尾
         pendingQueue.add(item)
 
-        // 补充新单词
         if (pendingQueue.isNotEmpty()) {
-            displayedWords.add(pendingQueue.removeAt(0))
+            displayedWords.add(currentSelectedIndex, pendingQueue.removeAt(0))
         }
 
-        // 调整选中索引
         if (currentSelectedIndex >= displayedWords.size && displayedWords.isNotEmpty()) {
             currentSelectedIndex = displayedWords.size - 1
         }
@@ -235,17 +235,17 @@ class WordMemoryActivity : Activity() {
 
     private fun saveChanges() {
         if (!hasUnsavedChanges) {
-            Toast.makeText(this, "没有需要更新的数据", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "没有需要更新的数据")
             return
         }
         val changedItems = allLoadedWords.filter { it.deltaFamiliarity != 0 || it.deltaStrangeness != 0 }
         if (changedItems.isEmpty()) {
-            Toast.makeText(this, "没有变化", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "没有变化")
             return
         }
         dbHelper.batchUpdateMemory(changedItems)
         hasUnsavedChanges = false
-        Toast.makeText(this, "已更新 ${changedItems.size} 个单词", Toast.LENGTH_SHORT).show()
+        ToastUtil.show(this, "已更新")
     }
 
     override fun onPause() {
