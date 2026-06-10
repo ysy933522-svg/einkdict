@@ -18,3 +18,4 @@ local.properties
 /.gradle/
 /.idea/
 /word_dic.sqbpro
+/app/release/

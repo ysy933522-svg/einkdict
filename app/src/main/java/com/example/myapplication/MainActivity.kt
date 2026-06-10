@@ -71,6 +71,9 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+
+
+
         // 检查读取SD卡权限
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE)
             != PackageManager.PERMISSION_GRANTED
@@ -120,6 +123,14 @@ class MainActivity : Activity() {
         tvResult.setHighlightColor(Color.TRANSPARENT)  // 设置高亮颜色为透明
         tvResult.isClickable = true
         tvResult.movementMethod = LinkMovementMethod.getInstance()
+
+        // 去掉所有按钮的点击特效（波纹、背景变化等）
+        listOf(btnQuery, btnPrev, btnNext, btnBack, btnForward, btnHistory, btnClear).forEach { btn ->
+            btn.isEnabled = true          // 始终启用
+            btn.background = null         // 移除背景
+            btn.setStateListAnimator(null) // 移除状态列表动画（API 21+）
+            btn.isClickable = true
+        }
 
         // 设置清除按钮点击事件
         btnClear.setOnClickListener {
@@ -265,27 +276,24 @@ class MainActivity : Activity() {
     private fun createPageButton(page: Int, text: String): Button {
         val button = Button(this)
         button.text = text
-        button.textSize = 14f                     // 适当减小字号
+        button.textSize = 14f
         button.background = null
-        button.setPadding(8, 4, 8, 4)             // 减小内边距
+        button.setStateListAnimator(null)  // 新增
+        button.setPadding(8, 4, 8, 4)
         button.minWidth = 0
         button.minimumWidth = 0
         button.layoutParams = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         ).apply {
-            // 可以设置外边距使按钮间有间隔
             marginStart = 4
             marginEnd = 4
         }
 
         if (page >= 0) {
-            // 真正的页码按钮
-            if (page == currentPage) {
-                button.setTextColor(Color.BLACK)
-            } else {
-                button.setTextColor(Color.GRAY)
-            }
+            // 始终显示黑色，不区分当前页
+            button.setTextColor(Color.BLACK)
+            button.isEnabled = true
 
             button.setOnClickListener {
                 if (!isFastClick && page != currentPage) {
@@ -294,12 +302,12 @@ class MainActivity : Activity() {
                     showCurrentPage()
                     updatePageBtnState()
                     updatePageNum()
-                    updatePageIndicator()  // 刷新页码指示器
+                    updatePageIndicator()
                     mainHandler.postDelayed({ isFastClick = false }, clickInterval)
                 }
             }
         } else {
-            // 原来有省略号逻辑，现在不需要了，但保留以防万一
+            // 省略号按钮（实际不会走到这里，保留安全）
             button.setTextColor(Color.GRAY)
             button.isEnabled = false
         }
@@ -434,25 +442,13 @@ class MainActivity : Activity() {
     }
 
     private fun updatePageBtnState() {
-        val canPrev = currentPage > 0
-        val canNext = currentPage < totalPage - 1
-
-        btnPrev.isEnabled = canPrev
-        btnNext.isEnabled = canNext
-
-        btnPrev.setTextColor(if (canPrev) Color.BLACK else Color.GRAY)
-        btnNext.setTextColor(if (canNext) Color.BLACK else Color.GRAY)
+        btnPrev.isEnabled = currentPage > 0
+        btnNext.isEnabled = currentPage < totalPage - 1
     }
 
     private fun updateBrowseBtnState() {
-        val canBack = browseIndex > 0
-        val canForward = browseIndex < browseStack.size - 1
-
-        btnBack.isEnabled = canBack
-        btnForward.isEnabled = canForward
-
-        btnBack.setTextColor(if (canBack) Color.BLACK else Color.GRAY)
-        btnForward.setTextColor(if (canForward) Color.BLACK else Color.GRAY)
+        btnPrev.isEnabled = currentPage > 0
+        btnNext.isEnabled = currentPage < totalPage - 1
     }
 
     // 蓝牙遥控器 / 翻页笔 按键翻页
