@@ -54,6 +54,7 @@ class HistoryActivity : Activity() {
         btnBack = findViewById(R.id.btn_back)
         btnClearHistory = findViewById(R.id.btn_clear_history)
         btnExportHistory = findViewById(R.id.btn_export_history)
+        btnExportHistory = findViewById(R.id.btn_export_history)
 
         // 禁用 GridView 点击视觉效果
         gvHistory.isVerticalScrollBarEnabled = false
@@ -62,6 +63,9 @@ class HistoryActivity : Activity() {
 
         // 等待数据库就绪后加载历史
         waitForDbAndLoad()
+
+
+
 
         // 上一页
         btnHistoryPrev.setOnClickListener {
@@ -98,7 +102,7 @@ class HistoryActivity : Activity() {
 
 
     private fun waitForDbAndLoad() {
-        if (dbHelper.isReady) {
+        if (dbHelper.isMemoryReady) {
             loadHistoryPage()
             // 显示历史总数，确认 App 内部能否读到
             val count = dbHelper.getHistoryTotalCount()

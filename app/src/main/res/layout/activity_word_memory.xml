@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:padding="8dp">
+
+    <!-- 单词列表区域（20个单词，每行2个） -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp">
+
+        <LinearLayout
+            android:id="@+id/layout_word_grid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <!-- 释义区域 -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="6dp">
+
+        <TextView
+            android:id="@+id/tv_explanation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            android:textColor="#000000"
+            android:lineSpacingExtra="2dp"
+            android:text="" />
+    </ScrollView>
+
+    <!-- 当前选中单词 -->
+    <TextView
+        android:id="@+id/tv_current_word"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="26sp"
+        android:textStyle="bold"
+        android:textColor="#000000"
+        android:gravity="center"
+        android:text="" />
+
+    <!-- 底部行：更新靠左，熟悉/陌生/进度靠右 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="6dp">
+
+        <!-- 更新按钮：靠左 -->
+        <Button
+            android:id="@+id/btn_update"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:text="更新"
+            android:textSize="16sp"
+            android:textColor="#000000"
+            android:background="@null"
+            android:stateListAnimator="@null"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp" />
+
+        <!-- 右侧容器：熟悉、陌生、进度靠右 -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_familiar"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="熟悉"
+                android:textSize="18sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="8dp" />
+
+            <Button
+                android:id="@+id/btn_strange"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="陌生"
+                android:textSize="18sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="8dp" />
+
+            <TextView
+                android:id="@+id/tv_progress"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="剩余: 100"
+                android:textSize="14sp"
+                android:textColor="#666666"
+                android:layout_marginStart="8dp"
+                android:layout_gravity="center_vertical" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -32,7 +32,6 @@
 
 
 
-
         <!-- 左侧：清除和导出按钮 -->
         <LinearLayout
             android:layout_width="0dp"
@@ -40,6 +39,7 @@
             android:layout_weight="1"
             android:orientation="horizontal"
             android:gravity="start">
+
 
             <Button
                 android:id="@+id/btn_back"

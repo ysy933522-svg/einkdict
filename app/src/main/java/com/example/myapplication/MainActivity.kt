@@ -1,7 +1,10 @@
 package com.example.myapplication
 
+// 在文件顶部添加导入
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -13,26 +16,19 @@ import android.text.Spanned
 import android.text.TextPaint
 import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
+import android.util.Log
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.TextView
-import android.content.pm.PackageManager
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-// 在文件顶部添加导入
-import android.text.Editable
-import android.text.TextWatcher
-import android.view.inputmethod.InputMethodManager
-import android.content.Context
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.widget.LinearLayout
-import androidx.compose.ui.text.font.Typeface
-import kotlin.math.max
-import kotlin.math.min
 
 class MainActivity : Activity() {
 
@@ -49,6 +45,7 @@ class MainActivity : Activity() {
     private lateinit var btnHistory: Button
     private lateinit var btnBack: Button
     private lateinit var btnForward: Button
+    private lateinit var btnMemoryEntry: Button
 
     private lateinit var btnClear: Button
 
@@ -73,6 +70,10 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        Log.d("MAIN", "MainActivity onCreate 被调用，hashCode=${this.hashCode()}")
+
+
+
 
 
 
@@ -110,7 +111,7 @@ class MainActivity : Activity() {
 
         dbHelper = (application as MyApplication).dbHelper
         tvResult.movementMethod = LinkMovementMethod.getInstance()
-        tvResult.text = "词典加载中，请稍候..."
+        tvResult.text = "..."
 
 
         // 固定高度，防止 hint 消失时高度变化
@@ -152,6 +153,25 @@ class MainActivity : Activity() {
             btn.setStateListAnimator(null) // 移除状态列表动画（API 21+）
             btn.isClickable = true
         }
+
+
+        btnMemoryEntry = findViewById(R.id.btn_start_learning)
+        btnMemoryEntry.setOnClickListener {
+            if (btnMemoryEntry.text == "返回背单词") {
+                // 返回背单词页面
+                val intent = Intent(this, WordMemoryActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                startActivity(intent)
+            } else {
+                // 进入背单词页面
+                val intent = Intent(this, WordMemoryActivity::class.java)
+                intent.putExtra("CATEGORY", "CET4") // 根据需要传递分类
+                startActivity(intent)
+            }
+        }
+
+        // 处理从背单词页面传来的 Intent
+        handleIntent(intent)
 
 
 
@@ -255,7 +275,7 @@ class MainActivity : Activity() {
             }
         }
 
-        checkDbReady()
+//        checkDbReady()
     }
 
     private val MAX_VISIBLE_PAGES = 13
@@ -343,7 +363,7 @@ class MainActivity : Activity() {
     }
 
 
-    
+
     // 添加清除输入框的方法
     private fun clearInput() {
         etInput.setText("")
@@ -367,7 +387,7 @@ class MainActivity : Activity() {
 
     private fun checkDbReady() {
         mainHandler.postDelayed({
-            if (dbHelper.isReady) {
+            if (dbHelper.isDictReady) {
                 tvResult.text = "词典已就绪，请输入单词查询"
             } else {
                 checkDbReady()
@@ -377,12 +397,13 @@ class MainActivity : Activity() {
 
     @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private fun doQuery(isJump: Boolean) {
+        // 如果词典尚未就绪，延迟重试
         val input = etInput.text.toString().trim()
         if (input.isEmpty()) {
             tvResult.text = "请输入英文单词"
             return
         }
-        if (!dbHelper.isReady) {
+        if (!dbHelper.isDictReady) {
             tvResult.text = "词典尚未加载完成，请稍后"
             return
         }
@@ -527,18 +548,43 @@ class MainActivity : Activity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_STORAGE_PERM) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // 权限通过，继续加载词典
-                checkDbReady()
-            } else {
-                tvResult.text = "请授予存储权限，否则无法加载词典"
-            }
-        }
+//        if (requestCode == REQUEST_STORAGE_PERM) {
+//            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+//                // 权限通过，继续加载词典
+//                checkDbReady()
+//            } else {
+//                tvResult.text = "请授予存储权限，否则无法加载词典"
+//            }
+//        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         dbHelper.close()
+    }
+
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent == null) return
+        val queryWord = intent.getStringExtra("QUERY_WORD")
+        val fromMemory = intent.getBooleanExtra("FROM_MEMORY", false)
+
+        if (fromMemory) {
+            // 来自背单词页面：按钮变为“返回背单词”
+            btnMemoryEntry.text = "记单词"
+        } else {
+            // 正常启动：按钮保持“记单词”
+            btnMemoryEntry.text = "记单词"
+        }
+
+        if (queryWord != null && queryWord.isNotBlank()) {
+            etInput.setText(queryWord)
+            doQuery(false)
+        }
     }
 }
