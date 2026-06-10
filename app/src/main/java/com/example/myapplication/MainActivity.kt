@@ -258,7 +258,7 @@ class MainActivity : Activity() {
         checkDbReady()
     }
 
-
+    private val MAX_VISIBLE_PAGES = 13
     // 添加更新页码指示器的方法
     private fun updatePageIndicator() {
         // 清空现有按钮
@@ -267,29 +267,27 @@ class MainActivity : Activity() {
 
         if (totalPage <= 0) return
 
-        // 计算起始页码和结束页码（包含）
         val startPage: Int
         val endPage: Int
 
-        if (totalPage <= 15) {
-            // 总页数不足15页，全部显示
+        if (totalPage <= MAX_VISIBLE_PAGES) {
+            // 总页数不足10页，全部显示
             startPage = 0
             endPage = totalPage - 1
         } else {
-            // 总页数大于15，按当前页位置计算
-            if (currentPage < 7) {
-                // 当前页靠近开头，显示前15页
-                startPage = 0
-                endPage = 14
-            } else if (currentPage >= totalPage - 8) {
-                // 当前页靠近末尾，显示最后15页
-                startPage = totalPage - 15
-                endPage = totalPage - 1
-            } else {
-                // 当前页在中间，前后各7页
-                startPage = currentPage - 7
-                endPage = currentPage + 7
+            // 总页数大于10，显示10页，当前页尽量居中
+            // 先尝试让当前页位于第5位（即前后各4页）
+            var start = currentPage - 4
+            if (start < 0) {
+                start = 0
             }
+            var end = start + MAX_VISIBLE_PAGES - 1
+            if (end >= totalPage) {
+                end = totalPage - 1
+                start = end - MAX_VISIBLE_PAGES + 1
+            }
+            startPage = start
+            endPage = end
         }
 
         // 生成页码按钮
@@ -301,15 +299,14 @@ class MainActivity : Activity() {
     }
 
 
-
     // 创建页码按钮
     private fun createPageButton(page: Int, text: String): Button {
         val button = Button(this)
         button.text = text
-        button.textSize = 14f
+        button.textSize = 20f
         button.background = null
         button.setStateListAnimator(null)
-        button.setPadding(8, 4, 8, 4)
+        button.setPadding(4, 4, 4, 4)
         button.minWidth = 0
         button.minimumWidth = 0
         button.layoutParams = LinearLayout.LayoutParams(

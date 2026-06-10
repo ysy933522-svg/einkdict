@@ -32,7 +32,7 @@ class HistoryActivity : Activity() {
     private lateinit var btnClearHistory: Button
     private lateinit var btnExportHistory: Button
 
-    private val HISTORY_PAGE_SIZE = 54
+    private val HISTORY_PAGE_SIZE = 60
     private var historyCurrentPage = 0
     private var historyTotalPage = 0
 
