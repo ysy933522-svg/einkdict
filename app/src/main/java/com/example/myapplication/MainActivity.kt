@@ -108,7 +108,7 @@ class MainActivity : Activity() {
         btnClear = findViewById(R.id.btn_clear)  // 新增
         pageIndicator = findViewById(R.id.page_indicator)
 
-        dbHelper = DictDbHelper(this)
+        dbHelper = (application as MyApplication).dbHelper
         tvResult.movementMethod = LinkMovementMethod.getInstance()
         tvResult.text = "词典加载中，请稍候..."
 
@@ -419,7 +419,11 @@ class MainActivity : Activity() {
                     updatePageIndicator()  // 更新页码指示器
                     return@runOnUiThread
                 }
-                dbHelper.addHistory(input)
+                try{
+                    dbHelper.addHistory(input)
+                }catch (e: Exception){
+                    e.printStackTrace()
+                }
                 showCurrentPage()
                 updatePageBtnState()
                 updatePageNum()

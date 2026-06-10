@@ -6,29 +6,26 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import java.io.File
 
-class DictDbHelper(private val context: Context) {
+class DictDbHelper(context: Context) {
     private val TAG = "DictDbHelper"
-    // 词典库：保留原有公共路径（只读，你手动放置）
+
     @SuppressLint("SdCardPath")
     private val DB_FULL_PATH = "/sdcard/dicts_sqlite_diy_/dict.db"
+
     private var db: SQLiteDatabase? = null
+    @Volatile
     var isReady = false
         private set
 
-    // 历史数据库：App 私有目录，系统自动管理，无需权限
-    private fun getHistoryDb(): SQLiteDatabase {
-        return context.openOrCreateDatabase("history_db", Context.MODE_PRIVATE, null)
-    }
-
     init {
-        // 加载外部词典数据库
         Thread {
             val dbFile = File(DB_FULL_PATH)
             Log.d(TAG, "数据库路径: $DB_FULL_PATH")
             Log.d(TAG, "文件存在: ${dbFile.exists()}, 大小: ${dbFile.length()}")
+            Log.d(TAG, "文件可写: ${dbFile.canWrite()}")
 
             if (!dbFile.exists()) {
-                Log.e(TAG, "词典数据库文件不存在，请检查路径！")
+                Log.e(TAG, "词典数据库文件不存在")
                 return@Thread
             }
 
@@ -36,34 +33,32 @@ class DictDbHelper(private val context: Context) {
                 db = SQLiteDatabase.openDatabase(
                     dbFile.absolutePath,
                     null,
-                    SQLiteDatabase.OPEN_READONLY
+                    SQLiteDatabase.OPEN_READWRITE
                 )
+                Log.d(TAG, "数据库以读写模式打开成功")
+
+                // 创建历史记录表（如果不存在）
+                db?.execSQL("CREATE TABLE IF NOT EXISTS search_history(id INTEGER PRIMARY KEY AUTOINCREMENT, word TEXT UNIQUE)")
+                Log.d(TAG, "历史表创建/确认完成")
+
                 isReady = true
                 Log.d(TAG, "词典数据库加载完成")
             } catch (e: Exception) {
-                Log.e(TAG, "词典数据库加载失败", e)
+                Log.e(TAG, "加载失败: ${e.message}", e)
             }
         }.start()
-
-        // 初始化私有历史表（私有目录，可正常写入）
-        initHistoryTable()
     }
 
-    // 创建历史记录表（私有库）
-    private fun initHistoryTable() {
-        val hDb = getHistoryDb()
-        hDb.execSQL("CREATE TABLE IF NOT EXISTS search_history(id INTEGER PRIMARY KEY AUTOINCREMENT, word TEXT UNIQUE)")
-        hDb.close()
-    }
-
-    // 原有词典查询方法 【完全未改动】
+    // ======================== 词典查询 ========================
     fun queryWordWithDict(word: String): MutableList<String> {
         val resultList = mutableListOf<String>()
         if (!isReady || db == null) return resultList
-        val lowerWord = word.lowercase()   // 转为小写
+        val lowerWord = word.lowercase()
 
-
-        val cursor = db!!.rawQuery("SELECT dict_id, explain, word_tag FROM word_dict WHERE word = ?", arrayOf(lowerWord))
+        val cursor = db!!.rawQuery(
+            "SELECT dict_id, explain, word_tag FROM word_dict WHERE word = ?",
+            arrayOf(lowerWord)
+        )
         while (cursor.moveToNext()) {
             val name = cursor.getString(0)
             val explain = cursor.getString(1)
@@ -74,19 +69,23 @@ class DictDbHelper(private val context: Context) {
         return resultList
     }
 
-    // 新增历史记录（写入私有数据库）
+    // ======================== 历史记录操作 ========================
+
     fun addHistory(word: String) {
-        val hDb = getHistoryDb()
-        hDb.execSQL("INSERT OR IGNORE INTO search_history(word) VALUES(?)", arrayOf(word))
-        hDb.close()
+        if (!isReady || db == null) return
+        try {
+            val newtime = System.currentTimeMillis()  // 当前毫秒时间戳
+            db!!.execSQL("INSERT OR IGNORE INTO search_history(word,create_time) VALUES(?,?)", arrayOf(word,newtime))
+        } catch (e: Exception) {
+            Log.e(TAG, "添加历史记录失败", e)
+        }
     }
 
-    // 分页查询历史记录（从私有数据库读取）
     fun getHistoryByPage(pageIndex: Int, pageSize: Int): MutableList<String> {
         val list = mutableListOf<String>()
+        if (!isReady || db == null) return list
         val offset = pageIndex * pageSize
-        val hDb = getHistoryDb()
-        val cursor = hDb.rawQuery(
+        val cursor = db!!.rawQuery(
             "SELECT word FROM search_history ORDER BY id DESC LIMIT ?, ?",
             arrayOf(offset.toString(), pageSize.toString())
         )
@@ -94,50 +93,43 @@ class DictDbHelper(private val context: Context) {
             list.add(cursor.getString(0))
         }
         cursor.close()
-        hDb.close()
         return list
     }
 
-    // 查询历史总条数（私有数据库）
     fun getHistoryTotalCount(): Int {
-        val hDb = getHistoryDb()
-        val cursor = hDb.rawQuery("SELECT COUNT(*) FROM search_history", null)
+        if (!isReady || db == null) return 0
+        val cursor = db!!.rawQuery("SELECT COUNT(*) FROM search_history", null)
         var total = 0
         if (cursor.moveToFirst()) {
             total = cursor.getInt(0)
         }
         cursor.close()
-        hDb.close()
         return total
     }
 
-    fun close() {
-        db?.close()
-    }
-
-
-    // 在 DictDbHelper 类中添加以下方法：
-
-    // 清除所有历史记录
     fun clearAllHistory() {
-        val hDb = getHistoryDb()
-        hDb.execSQL("DELETE FROM search_history")
-        hDb.close()
+        if (!isReady || db == null) return
+        try {
+            db!!.execSQL("DELETE FROM search_history")
+        } catch (e: Exception) {
+            Log.e(TAG, "清除历史记录失败", e)
+        }
     }
 
-    // 获取所有历史记录（用于导出）
     fun getAllHistory(): MutableList<String> {
         val list = mutableListOf<String>()
-        val hDb = getHistoryDb()
-        val cursor = hDb.rawQuery("SELECT word FROM search_history ORDER BY id DESC", null)
+        if (!isReady || db == null) return list
+        val cursor = db!!.rawQuery("SELECT word FROM search_history ORDER BY id DESC", null)
         while (cursor.moveToNext()) {
             list.add(cursor.getString(0))
         }
         cursor.close()
-        hDb.close()
         return list
     }
 
-
-
+    fun close() {
+        db?.close()
+        db = null
+        isReady = false
+    }
 }

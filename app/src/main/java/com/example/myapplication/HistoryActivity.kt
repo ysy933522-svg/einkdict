@@ -5,9 +5,10 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.KeyEvent
-import android.view.WindowInsets
-import android.view.WindowInsetsController
+import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -32,27 +33,20 @@ class HistoryActivity : Activity() {
     private lateinit var btnClearHistory: Button
     private lateinit var btnExportHistory: Button
 
-    private val HISTORY_PAGE_SIZE = 60
+    private val HISTORY_PAGE_SIZE = 54
     private var historyCurrentPage = 0
     private var historyTotalPage = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 设置窗口格式
         window.setBackgroundDrawableResource(android.R.color.white)
-
         setContentView(R.layout.activity_history)
-
-// 强制全屏：隐藏状态栏和导航栏
-        window.setDecorFitsSystemWindows(false)
-        window.insetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-
-        // 让用户从屏幕边缘滑动时临时显示系统栏（沉浸模式）
-        window.insetsController?.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
 
-        dbHelper = DictDbHelper(this)
+        // 使用 Application 单例
+        dbHelper = (application as MyApplication).dbHelper
+
         gvHistory = findViewById(R.id.gv_history)
         tvHistoryPage = findViewById(R.id.tv_history_page)
         btnHistoryPrev = findViewById(R.id.btn_history_prev)
@@ -61,28 +55,13 @@ class HistoryActivity : Activity() {
         btnClearHistory = findViewById(R.id.btn_clear_history)
         btnExportHistory = findViewById(R.id.btn_export_history)
 
-        // 禁用 GridView 的所有点击视觉效果
+        // 禁用 GridView 点击视觉效果
         gvHistory.isVerticalScrollBarEnabled = false
         gvHistory.isHorizontalScrollBarEnabled = false
         gvHistory.selector = ContextCompat.getDrawable(this, android.R.color.transparent)
 
-        // 固定翻页按钮：始终黑色、无点击反馈
-        listOf(btnHistoryPrev, btnHistoryNext).forEach { btn ->
-            btn.isEnabled = true
-            btn.background = null
-            btn.setStateListAnimator(null)
-            btn.setTextColor(Color.BLACK)
-        }
-
-
-
-        // 初始化数据
-        val totalCount = dbHelper.getHistoryTotalCount()
-        historyCurrentPage = 0
-        historyTotalPage = if (totalCount == 0) 0 else (totalCount + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
-
-        // 加载当前页数据
-        loadHistoryPage()
+        // 等待数据库就绪后加载历史
+        waitForDbAndLoad()
 
         // 上一页
         btnHistoryPrev.setOnClickListener {
@@ -100,31 +79,46 @@ class HistoryActivity : Activity() {
             }
         }
 
-        // 返回按钮
+        // 返回
         btnBack.setOnClickListener {
             setResult(RESULT_CANCELED)
             finish()
         }
 
-        // 清除历史按钮
+        // 清除历史
         btnClearHistory.setOnClickListener {
             showClearHistoryDialog()
         }
 
-        // 导出历史按钮
+        // 导出历史
         btnExportHistory.setOnClickListener {
             exportHistoryToFile()
         }
     }
 
+
+    private fun waitForDbAndLoad() {
+        if (dbHelper.isReady) {
+            loadHistoryPage()
+            // 显示历史总数，确认 App 内部能否读到
+            val count = dbHelper.getHistoryTotalCount()
+        } else {
+            Handler(Looper.getMainLooper()).postDelayed({
+                waitForDbAndLoad()
+            }, 200)
+        }
+    }
+
     private fun loadHistoryPage() {
+        val totalCount = dbHelper.getHistoryTotalCount()
+        historyCurrentPage = 0
+        historyTotalPage = if (totalCount == 0) 0 else (totalCount + HISTORY_PAGE_SIZE - 1) / HISTORY_PAGE_SIZE
+
         val pageData = dbHelper.getHistoryByPage(historyCurrentPage, HISTORY_PAGE_SIZE)
         val adapter = ArrayAdapter(this, R.layout.history_item, pageData)
         gvHistory.adapter = adapter
 
         tvHistoryPage.text = "${historyCurrentPage + 1} / $historyTotalPage"
-
-        // 不再设置按钮颜色和 enabled 状态（按钮已固定为黑色、始终启用）
 
         // 点击条目返回主界面并查询
         gvHistory.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
@@ -135,7 +129,7 @@ class HistoryActivity : Activity() {
             finish()
         }
     }
-    // 显示清除历史确认对话框
+
     private fun showClearHistoryDialog() {
         val totalCount = dbHelper.getHistoryTotalCount()
         if (totalCount == 0) {
@@ -146,11 +140,9 @@ class HistoryActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("清除历史记录")
             .setMessage("确定要清除所有 $totalCount 条历史记录吗？")
-            .setPositiveButton("确定") { dialog, which ->
+            .setPositiveButton("确定") { _, _ ->
                 dbHelper.clearAllHistory()
                 Toast.makeText(this, "已清除所有历史记录", Toast.LENGTH_SHORT).show()
-
-                // 重新加载数据
                 historyCurrentPage = 0
                 historyTotalPage = 0
                 loadHistoryPage()
@@ -159,35 +151,25 @@ class HistoryActivity : Activity() {
             .show()
     }
 
-    // 导出历史记录到文件
     private fun exportHistoryToFile() {
         val allHistory = dbHelper.getAllHistory()
-
         if (allHistory.isEmpty()) {
             Toast.makeText(this, "没有历史记录可导出", Toast.LENGTH_SHORT).show()
             return
         }
 
         try {
-            // 创建文件名，包含时间戳
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val fileName = "dict_history_$timeStamp.txt"
-
-            // 获取外部存储目录（在汉王N10 Pro上应该是可访问的）
             val exportDir = File("/sdcard/DictExport/")
-            if (!exportDir.exists()) {
-                exportDir.mkdirs()
-            }
-
+            if (!exportDir.exists()) exportDir.mkdirs()
             val exportFile = File(exportDir, fileName)
 
-            // 写入文件内容
             val content = StringBuilder()
             content.append("=== 词典查询历史记录 ===\n")
             content.append("导出时间: $timeStamp\n")
             content.append("记录总数: ${allHistory.size}\n")
             content.append("========================\n\n")
-
             for ((index, word) in allHistory.withIndex()) {
                 content.append("${index + 1}. $word\n")
             }
@@ -195,9 +177,7 @@ class HistoryActivity : Activity() {
             FileOutputStream(exportFile).use { fos ->
                 fos.write(content.toString().toByteArray())
             }
-
             Toast.makeText(this, "已导出到: ${exportFile.absolutePath}", Toast.LENGTH_LONG).show()
-
         } catch (e: Exception) {
             e.printStackTrace()
             Toast.makeText(this, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -209,38 +189,29 @@ class HistoryActivity : Activity() {
         loadHistoryPage()
     }
 
-    // 处理按键事件（支持遥控器/翻页笔）
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (event?.repeatCount ?: 1 > 0) return super.onKeyDown(keyCode, event)
-
         when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_VOLUME_UP,
-            KeyEvent.KEYCODE_PAGE_DOWN -> {
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_PAGE_DOWN -> {
                 if (historyCurrentPage < historyTotalPage - 1) {
                     historyCurrentPage++
                     loadHistoryPage()
                 }
                 return true
             }
-
-            KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_VOLUME_DOWN,
-            KeyEvent.KEYCODE_PAGE_UP -> {
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_VOLUME_DOWN, KeyEvent.KEYCODE_PAGE_UP -> {
                 if (historyCurrentPage > 0) {
                     historyCurrentPage--
                     loadHistoryPage()
                 }
                 return true
             }
-
             KeyEvent.KEYCODE_BACK -> {
                 setResult(RESULT_CANCELED)
                 finish()
                 return true
             }
         }
-
         return super.onKeyDown(keyCode, event)
     }
 }
