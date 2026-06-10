@@ -1,6 +1,11 @@
+<!-- res/values/themes.xml -->
 <resources>
-    <style name="Theme.MyApplication" parent="android:Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">@android:color/white</item>
-        <item name="android:textColorPrimary">@android:color/black</item>
+    <style name="Theme.MyDict" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 关键：明确定义状态栏颜色 -->
+        <item name="android:statusBarColor">#FFFFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- 可选：让内容画到状态栏底下但你自己管padding -->
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
     </style>
 </resources>

@@ -27,7 +27,10 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.inputmethod.InputMethodManager
 import android.content.Context
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.LinearLayout
+import androidx.compose.ui.text.font.Typeface
 import kotlin.math.max
 import kotlin.math.min
 
@@ -124,6 +127,24 @@ class MainActivity : Activity() {
         tvResult.isClickable = true
         tvResult.movementMethod = LinkMovementMethod.getInstance()
 
+        // 永久启用按钮，避免 enabled 状态变化触发重绘
+        btnPrev.isEnabled = true
+        btnNext.isEnabled = true
+        btnPrev.setStateListAnimator(null)
+        btnNext.setStateListAnimator(null)
+        btnPrev.background = null
+        btnNext.background = null
+
+
+        // 强制全屏：隐藏状态栏和导航栏
+        window.setDecorFitsSystemWindows(false)
+        window.insetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+
+        // 让用户从屏幕边缘滑动时临时显示系统栏（沉浸模式）
+        window.insetsController?.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+
+
         // 去掉所有按钮的点击特效（波纹、背景变化等）
         listOf(btnQuery, btnPrev, btnNext, btnBack, btnForward, btnHistory, btnClear).forEach { btn ->
             btn.isEnabled = true          // 始终启用
@@ -131,6 +152,8 @@ class MainActivity : Activity() {
             btn.setStateListAnimator(null) // 移除状态列表动画（API 21+）
             btn.isClickable = true
         }
+
+
 
         // 设置清除按钮点击事件
         btnClear.setOnClickListener {
@@ -172,22 +195,18 @@ class MainActivity : Activity() {
         }
 
 
-
         btnPrev.setOnClickListener {
             if (!isFastClick && currentPage > 0) {
                 isFastClick = true
                 currentPage--
-                // 先更新数据，但不立即刷新UI
-                // 延迟50ms再刷新，让墨水屏有时间消化点击事件
-                mainHandler.postDelayed({
-                    showCurrentPage()
+                showCurrentPage()
+                updatePageNum()
+                // 延迟更新按钮颜色，避开点击事件的瞬时刷新
+                mainHandler.post {
                     updatePageBtnState()
-                    updatePageNum()
                     updatePageIndicator()
-                    // 强制局部刷新结果区域（可选）
-                    tvResult.invalidate()
                     isFastClick = false
-                }, 50) // 50毫秒延迟，人眼几乎无感，但能避免闪烁
+                }
             }
         }
 
@@ -195,16 +214,16 @@ class MainActivity : Activity() {
             if (!isFastClick && currentPage < totalPage - 1) {
                 isFastClick = true
                 currentPage++
-                mainHandler.postDelayed({
-                    showCurrentPage()
+                showCurrentPage()
+                updatePageNum()
+                mainHandler.post {
                     updatePageBtnState()
-                    updatePageNum()
                     updatePageIndicator()
-                    tvResult.invalidate()
                     isFastClick = false
-                }, 50)
+                }
             }
         }
+
 
         btnHistory.setOnClickListener {
             if (!isFastClick) {
@@ -289,7 +308,7 @@ class MainActivity : Activity() {
         button.text = text
         button.textSize = 14f
         button.background = null
-        button.setStateListAnimator(null)  // 新增
+        button.setStateListAnimator(null)
         button.setPadding(8, 4, 8, 4)
         button.minWidth = 0
         button.minimumWidth = 0
@@ -301,12 +320,12 @@ class MainActivity : Activity() {
             marginEnd = 4
         }
 
-        if (page >= 0) {
-            // 始终显示黑色，不区分当前页
-//            button.setTextColor(Color.BLACK)
-            button.setTextColor(if (page == currentPage) Color.BLACK else Color.GRAY)
-            button.isEnabled = true
+        // 所有页码按钮固定黑色
+        button.setTextColor(Color.BLACK)
+        button.isEnabled = true
 
+
+        if (page >= 0) {
             button.setOnClickListener {
                 if (!isFastClick && page != currentPage) {
                     isFastClick = true
@@ -319,8 +338,7 @@ class MainActivity : Activity() {
                 }
             }
         } else {
-            // 省略号按钮（实际不会走到这里，保留安全）
-            button.setTextColor(Color.GRAY)
+            // 省略号按钮（实际不会用到，保留安全）
             button.isEnabled = false
         }
 
@@ -374,7 +392,9 @@ class MainActivity : Activity() {
 
         if (!isJump) {
             if (browseIndex != browseStack.size - 1) {
-                while (browseStack.size > browseIndex + 1) browseStack.removeLast()
+                while (browseStack.size > browseIndex + 1) {
+                    browseStack.removeAt(browseStack.lastIndex)
+                }
             }
             browseStack.add(input)
             browseIndex = browseStack.size - 1
@@ -454,21 +474,14 @@ class MainActivity : Activity() {
     }
 
     private fun updatePageBtnState() {
-        val canPrev = currentPage > 0
-        val canNext = currentPage < totalPage - 1
+        // 不改变 enabled，只设置颜色
 
-        // 设置 enabled 控制点击响应（但不再依赖它改变外观）
-        btnPrev.isEnabled = canPrev
-        btnNext.isEnabled = canNext
-
-        // 直接设置颜色，不通过 selector 或 enabled 状态变化触发重绘
-        btnPrev.setTextColor(if (canPrev) Color.BLACK else Color.GRAY)
-        btnNext.setTextColor(if (canNext) Color.BLACK else Color.GRAY)
     }
 
+
+
     private fun updateBrowseBtnState() {
-        btnPrev.isEnabled = currentPage > 0
-        btnNext.isEnabled = currentPage < totalPage - 1
+
     }
 
     // 蓝牙遥控器 / 翻页笔 按键翻页

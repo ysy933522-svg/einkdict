@@ -6,6 +6,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -42,6 +44,14 @@ class HistoryActivity : Activity() {
 
         setContentView(R.layout.activity_history)
 
+// 强制全屏：隐藏状态栏和导航栏
+        window.setDecorFitsSystemWindows(false)
+        window.insetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+
+        // 让用户从屏幕边缘滑动时临时显示系统栏（沉浸模式）
+        window.insetsController?.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+
         dbHelper = DictDbHelper(this)
         gvHistory = findViewById(R.id.gv_history)
         tvHistoryPage = findViewById(R.id.tv_history_page)
@@ -55,6 +65,16 @@ class HistoryActivity : Activity() {
         gvHistory.isVerticalScrollBarEnabled = false
         gvHistory.isHorizontalScrollBarEnabled = false
         gvHistory.selector = ContextCompat.getDrawable(this, android.R.color.transparent)
+
+        // 固定翻页按钮：始终黑色、无点击反馈
+        listOf(btnHistoryPrev, btnHistoryNext).forEach { btn ->
+            btn.isEnabled = true
+            btn.background = null
+            btn.setStateListAnimator(null)
+            btn.setTextColor(Color.BLACK)
+        }
+
+
 
         // 初始化数据
         val totalCount = dbHelper.getHistoryTotalCount()
@@ -104,14 +124,7 @@ class HistoryActivity : Activity() {
 
         tvHistoryPage.text = "${historyCurrentPage + 1} / $historyTotalPage"
 
-        val canHPrev = historyCurrentPage > 0
-        val canHNext = historyCurrentPage < historyTotalPage - 1
-
-        btnHistoryPrev.isEnabled = canHPrev
-        btnHistoryNext.isEnabled = canHNext
-
-        btnHistoryPrev.setTextColor(if (canHPrev) Color.BLACK else Color.GRAY)
-        btnHistoryNext.setTextColor(if (canHNext) Color.BLACK else Color.GRAY)
+        // 不再设置按钮颜色和 enabled 状态（按钮已固定为黑色、始终启用）
 
         // 点击条目返回主界面并查询
         gvHistory.onItemClickListener = AdapterView.OnItemClickListener { _, _, position, _ ->
@@ -122,7 +135,6 @@ class HistoryActivity : Activity() {
             finish()
         }
     }
-
     // 显示清除历史确认对话框
     private fun showClearHistoryDialog() {
         val totalCount = dbHelper.getHistoryTotalCount()
