@@ -80,17 +80,14 @@ class DictDbHelper(context: Context) {
                     "strangeness INTEGER DEFAULT 0, " +
                     "category TEXT DEFAULT '')")
 
-
-            
-            // 图片记忆表（新增）
             memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS image_memory(" +
-                    "path_hash TEXT PRIMARY KEY, " +
-                    "file_path TEXT NOT NULL, " +
+                    "file_path TEXT PRIMARY KEY, " +          // 直接用文件路径做主键
                     "familiarity INTEGER DEFAULT 0, " +
                     "strangeness INTEGER DEFAULT 0, " +
                     "directory TEXT DEFAULT '')")
 
-// 记事本表
+
+            // 记事本表
             memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS note(" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
                     "content TEXT NOT NULL, " +
@@ -306,11 +303,11 @@ class DictDbHelper(context: Context) {
 
     // ---------- 图片记忆操作 ----------
     /** 获取图片的记忆分数 */
-    fun getImageScore(pathHash: String): Pair<Int, Int>? {
+    fun getImageScore(filePath: String): Pair<Int, Int>? {
         if (!isMemoryReady || memoryDb == null) return null
         val cursor = memoryDb!!.rawQuery(
-            "SELECT familiarity, strangeness FROM image_memory WHERE path_hash = ?",
-            arrayOf(pathHash)
+            "SELECT familiarity, strangeness FROM image_memory WHERE file_path = ?",
+            arrayOf(filePath)
         )
         var result: Pair<Int, Int>? = null
         if (cursor.moveToFirst()) {
@@ -325,11 +322,13 @@ class DictDbHelper(context: Context) {
         if (!isMemoryReady || memoryDb == null || scores.isEmpty()) return
         memoryDb!!.beginTransaction()
         try {
-            for ((pathHash, pair) in scores) {
+            for ((filePath, pair) in scores) {
                 val (familiarity, strangeness) = pair
+                // 使用 INSERT OR REPLACE 确保记录存在
                 memoryDb!!.execSQL(
-                    "UPDATE image_memory SET familiarity = ?, strangeness = ? WHERE path_hash = ?",
-                    arrayOf(familiarity, strangeness, pathHash)
+                    """INSERT OR REPLACE INTO image_memory(file_path, familiarity, strangeness) 
+                   VALUES(?, ?, ?)""",
+                    arrayOf(filePath, familiarity, strangeness)
                 )
             }
             memoryDb!!.setTransactionSuccessful()
@@ -341,11 +340,11 @@ class DictDbHelper(context: Context) {
     }
 
     /** 插入或更新一条图片记录（用于首次扫描时记录路径） */
-    fun insertImageRecord(pathHash: String, filePath: String, directory: String) {
+    fun insertImageRecord( filePath: String, directory: String) {
         if (!isMemoryReady || memoryDb == null) return
         memoryDb!!.execSQL(
-            "INSERT OR IGNORE INTO image_memory(path_hash, file_path, directory) VALUES(?, ?, ?)",
-            arrayOf(pathHash, filePath, directory)
+            "INSERT OR IGNORE INTO image_memory( file_path, directory) VALUES( ?, ?)",
+            arrayOf( filePath, directory)
         )
     }
 

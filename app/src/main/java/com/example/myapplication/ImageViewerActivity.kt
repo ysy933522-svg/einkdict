@@ -235,11 +235,12 @@ class ImageViewerActivity : Activity() {
             ToastUtil.show(this, "无法加载图片")
         }
         // 从内存缓存读取分数（不从数据库读取，因为分数只存在于内存和保存时写入）
-        val hash = md5(file.absolutePath)
-        if (!scoreCache.containsKey(hash)) {
+
+        val filePath = file.absolutePath
+        if (!scoreCache.containsKey(filePath)) {
             // 首次查看该图片，尝试从数据库加载历史分数（如果有）
-            val dbScore = dbHelper.getImageScore(hash)
-            scoreCache[hash] = dbScore ?: Pair(0, 0)
+            val dbScore = dbHelper.getImageScore(filePath)
+            scoreCache[filePath] = dbScore ?: Pair(0, 0)
         }
     }
 
@@ -248,9 +249,9 @@ class ImageViewerActivity : Activity() {
     private fun onFamiliar() {
         if (imageFiles.isEmpty()) return
         val file = imageFiles[currentIndex]
-        val hash = md5(file.absolutePath)
-        val old = scoreCache[hash] ?: Pair(0, 0)
-        scoreCache[hash] = Pair(old.first + 1, old.second)
+        val filePath = file.absolutePath
+        val old = scoreCache[filePath] ?: Pair(0, 0)
+        scoreCache[filePath] = Pair(old.first + 1, old.second)
         hasUnsavedChanges = true
         nextImage()
     }
@@ -258,9 +259,9 @@ class ImageViewerActivity : Activity() {
     private fun onStrange() {
         if (imageFiles.isEmpty()) return
         val file = imageFiles[currentIndex]
-        val hash = md5(file.absolutePath)
-        val old = scoreCache[hash] ?: Pair(0, 0)
-        scoreCache[hash] = Pair(old.first, old.second + 1)
+        val filePath = file.absolutePath
+        val old = scoreCache[filePath] ?: Pair(0, 0)
+        scoreCache[filePath] = Pair(old.first, old.second + 1)
         hasUnsavedChanges = true
         nextImage()
     }
@@ -325,11 +326,5 @@ class ImageViewerActivity : Activity() {
         super.onBackPressed()
     }
 
-    // ---------- 工具 ----------
 
-    private fun md5(input: String): String {
-        val digest = MessageDigest.getInstance("MD5")
-        val bytes = digest.digest(input.toByteArray())
-        return bytes.joinToString("") { "%02x".format(it) }
-    }
 }
