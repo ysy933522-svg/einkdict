@@ -1,6 +1,7 @@
 package com.example.myapplication
 
 import android.annotation.SuppressLint
+import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
@@ -79,14 +80,21 @@ class DictDbHelper(context: Context) {
                     "strangeness INTEGER DEFAULT 0, " +
                     "category TEXT DEFAULT '')")
 
-            // 检查是否需要插入默认单词
-            val cursor = memoryDb?.rawQuery("SELECT COUNT(*) FROM word_memory", null)
-            var isEmpty = true
-            cursor?.let {
-                if (it.moveToFirst() && it.getInt(0) > 0) isEmpty = false
-                it.close()
-            }
 
+
+            // 图片记忆表（新增）
+            memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS image_memory(" +
+                    "path_hash TEXT PRIMARY KEY, " +
+                    "file_path TEXT NOT NULL, " +
+                    "familiarity INTEGER DEFAULT 0, " +
+                    "strangeness INTEGER DEFAULT 0, " +
+                    "directory TEXT DEFAULT '')")
+
+// 记事本表
+            memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS note(" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "content TEXT NOT NULL, " +
+                    "create_time INTEGER DEFAULT 0)")
 
             isMemoryReady = true
             Log.d(TAG, "记忆/历史数据库加载完成")
@@ -295,7 +303,118 @@ class DictDbHelper(context: Context) {
     }
 
 
+
+    // ---------- 图片记忆操作 ----------
+    /** 获取图片的记忆分数 */
+    fun getImageScore(pathHash: String): Pair<Int, Int>? {
+        if (!isMemoryReady || memoryDb == null) return null
+        val cursor = memoryDb!!.rawQuery(
+            "SELECT familiarity, strangeness FROM image_memory WHERE path_hash = ?",
+            arrayOf(pathHash)
+        )
+        var result: Pair<Int, Int>? = null
+        if (cursor.moveToFirst()) {
+            result = Pair(cursor.getInt(0), cursor.getInt(1))
+        }
+        cursor.close()
+        return result
+    }
+
+    /** 批量更新图片分数（事务） */
+    fun batchUpdateImageScores(scores: Map<String, Pair<Int, Int>>) {
+        if (!isMemoryReady || memoryDb == null || scores.isEmpty()) return
+        memoryDb!!.beginTransaction()
+        try {
+            for ((pathHash, pair) in scores) {
+                val (familiarity, strangeness) = pair
+                memoryDb!!.execSQL(
+                    "UPDATE image_memory SET familiarity = ?, strangeness = ? WHERE path_hash = ?",
+                    arrayOf(familiarity, strangeness, pathHash)
+                )
+            }
+            memoryDb!!.setTransactionSuccessful()
+        } catch (e: Exception) {
+            Log.e(TAG, "批量更新图片分数失败", e)
+        } finally {
+            memoryDb!!.endTransaction()
+        }
+    }
+
+    /** 插入或更新一条图片记录（用于首次扫描时记录路径） */
+    fun insertImageRecord(pathHash: String, filePath: String, directory: String) {
+        if (!isMemoryReady || memoryDb == null) return
+        memoryDb!!.execSQL(
+            "INSERT OR IGNORE INTO image_memory(path_hash, file_path, directory) VALUES(?, ?, ?)",
+            arrayOf(pathHash, filePath, directory)
+        )
+    }
+
+
+
+
+    // ---------- 记事本操作 ----------
+    fun insertNote(content: String): Long {
+        if (!isMemoryReady || memoryDb == null) return -1
+        val values = ContentValues().apply {
+            put("content", content)
+            put("create_time", System.currentTimeMillis())
+        }
+        return memoryDb!!.insert("note", null, values)
+    }
+
+    fun getNotesByPage(pageIndex: Int, pageSize: Int): List<NoteItem> {
+        val list = mutableListOf<NoteItem>()
+        if (!isMemoryReady || memoryDb == null) return list
+        val offset = pageIndex * pageSize
+        val cursor = memoryDb!!.rawQuery(
+            "SELECT id, content, create_time FROM note ORDER BY id DESC LIMIT ?, ?",
+            arrayOf(offset.toString(), pageSize.toString())
+        )
+        while (cursor.moveToNext()) {
+            list.add(NoteItem(
+                id = cursor.getLong(0),
+                content = cursor.getString(1),
+                createTime = cursor.getLong(2)
+            ))
+        }
+        cursor.close()
+        return list
+    }
+
+    /** 获取记事本总条数 */
+    fun getNoteTotalCount(): Int {
+        if (!isMemoryReady || memoryDb == null) return 0
+        val cursor = memoryDb!!.rawQuery("SELECT COUNT(*) FROM note", null)
+        var count = 0
+        if (cursor.moveToFirst()) count = cursor.getInt(0)
+        cursor.close()
+        return count
+    }
+
+    /** 删除单条记事 */
+    fun deleteNote(id: Long) {
+        if (!isMemoryReady || memoryDb == null) return
+        memoryDb!!.delete("note", "id = ?", arrayOf(id.toString()))
+    }
+
+    /** 更新记事内容 */
+    fun updateNote(id: Long, newContent: String) {
+        if (!isMemoryReady || memoryDb == null) return
+        val values = ContentValues().apply {
+            put("content", newContent)
+        }
+        memoryDb!!.update("note", values, "id = ?", arrayOf(id.toString()))
+    }
+
+
+
 }
+
+data class NoteItem(
+    val id: Long,
+    val content: String,
+    val createTime: Long
+)
 
 /** 单词记忆数据类 */
 data class WordMemoryItem(

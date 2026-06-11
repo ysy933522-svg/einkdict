@@ -169,10 +169,28 @@ class MainActivity : Activity() {
                 startActivity(intent)
             }
         }
+        val btnToggleMenu = findViewById<Button>(R.id.btn_toggle_menu)
+        val layoutMenuButtons = findViewById<LinearLayout>(R.id.layout_menu_buttons)
+
+        btnToggleMenu.setOnClickListener {
+            val isVisible = layoutMenuButtons.visibility == View.VISIBLE
+            layoutMenuButtons.visibility = if (isVisible) View.GONE else View.VISIBLE
+        }
 
         // 处理从背单词页面传来的 Intent
         handleIntent(intent)
 
+        val btnImageViewer = findViewById<Button>(R.id.btn_image_viewer)
+        btnImageViewer.setOnClickListener {
+            val intent = Intent(this, ImageViewerActivity::class.java)
+            startActivity(intent)
+        }
+
+        val btnNote = findViewById<Button>(R.id.btn_note)
+        btnNote.setOnClickListener {
+            val intent = Intent(this, NoteEditorActivity::class.java)
+            startActivity(intent)
+        }
 
 
         // 设置清除按钮点击事件
