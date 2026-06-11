@@ -81,7 +81,7 @@ class DictDbHelper(context: Context) {
                     "category TEXT DEFAULT '')")
 
 
-
+            
             // 图片记忆表（新增）
             memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS image_memory(" +
                     "path_hash TEXT PRIMARY KEY, " +
