@@ -1,0 +1,5 @@
+/sdcard/Pictures/408笔记/
+/sdcard/Pictures/oldscreenshot
+/sdcard/Pictures/数学笔记
+/sdcard/Pictures/英语
+/sdcard/Pictures/Screenshots

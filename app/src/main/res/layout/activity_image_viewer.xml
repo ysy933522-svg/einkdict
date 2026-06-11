@@ -1,7 +1,151 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-             android:orientation="vertical"
-             android:layout_width="match_parent"
-             android:layout_height="match_parent">
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFF">
+
+    <ImageView
+        android:id="@+id/iv_image"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="fitCenter"
+        android:adjustViewBounds="true"
+        android:layerType="software" />
+
+    <!-- 底部按钮行 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="6dp">
+
+        <!-- 左侧按钮组 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btn_switch_dir"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="目录"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_reload"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="刷新"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_prev"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="上一张"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_next"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="下一张"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_save"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="保存"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
+
+            <!-- 返回按钮（新增，放在最左侧） -->
+            <Button
+                android:id="@+id/btn_back"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="返回"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+        </LinearLayout>
+
+        <!-- 中间数字按钮区域 -->
+        <LinearLayout
+            android:id="@+id/layout_number_buttons"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="horizontal" />
+
+        <!-- 右侧按钮组 -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <Button
+                android:id="@+id/btn_familiar"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="熟悉"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
+            <Button
+                android:id="@+id/btn_strange"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="陌生"
+                android:textSize="14sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+        </LinearLayout>
+
+    </LinearLayout>
 
 </LinearLayout>

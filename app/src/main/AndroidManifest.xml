@@ -40,6 +40,16 @@
             android:exported="false"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
+        <activity
+            android:name=".ImageViewerActivity"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+        <activity
+            android:name=".DirConfigActivity"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+
+        <activity android:name=".NoteEditorActivity" />
+        <activity android:name=".NoteHistoryActivity" />
+
     </application>
 
 </manifest>
