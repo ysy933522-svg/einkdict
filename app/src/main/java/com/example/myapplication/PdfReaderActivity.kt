@@ -1,5 +1,5 @@
 package com.example.myapplication
-
+import android.R.attr.textColor
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -24,15 +24,25 @@ import android.graphics.Paint
 import android.graphics.drawable.ColorDrawable
 import android.view.Gravity
 import android.view.KeyEvent
+import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.SeekBar
+import android.widget.Toast
+
 
 import androidx.appcompat.app.AppCompatActivity
 
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
+import java.util.Locale.getDefault
 
 class PdfReaderActivity : AppCompatActivity() {
 
+
+    private lateinit var settingsButton: Button
+    private var docSettingsOverride: GlobalSettings? = null
     private lateinit var preview: ImageView
     private lateinit var overlay: SelectionOverlay
     private lateinit var tvPageInfo: TextView
@@ -41,6 +51,8 @@ class PdfReaderActivity : AppCompatActivity() {
     private var currentPageIndex = 0
     private var totalPages = 0
 
+    // 添加这一行
+    private var currentDocPath: String = ""
     private var pic_path = "/sdcard/dicts_sqlite_diy_/__pic_note__/__note__1__/";
 
 
@@ -75,8 +87,6 @@ class PdfReaderActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_pdf_reader)
 
-
-
         // 全屏沉浸模式
         window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -86,7 +96,6 @@ class PdfReaderActivity : AppCompatActivity() {
                         or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                         or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 )
-
 
         preview = findViewById(R.id.preview)
         overlay = findViewById(R.id.overlay)
@@ -99,47 +108,49 @@ class PdfReaderActivity : AppCompatActivity() {
             }
         }
 
-        // 按钮绑定
+        // ★ 设置按钮绑定（必须放在所有 return 之前，确保总是执行）
+        settingsButton = findViewById(R.id.btnSettings)
+        settingsButton.setOnClickListener {
+            if (currentDocPath.isNotEmpty()) {
+                showSettingsDialog()
+            } else {
+                Toast.makeText(this, "请先打开一个PDF文件", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // 按钮绑定（翻页、缩放、截图、返回）
         findViewById<Button>(R.id.btnPrev).setOnClickListener { goPage(-1) }
         findViewById<Button>(R.id.btnNext).setOnClickListener { goPage(1) }
         findViewById<Button>(R.id.btnZoomOut).setOnClickListener { changeZoom(-1) }
         findViewById<Button>(R.id.btnZoomIn).setOnClickListener { changeZoom(1) }
         findViewById<Button>(R.id.btnCrop).setOnClickListener { toggleCropMode() }
         findViewById<Button>(R.id.btnBack).setOnClickListener {
-            saveReadingProgress(currentPageIndex) // 保存进度
+            saveReadingProgress(currentPageIndex)
             finish()
         }
-
-
-
 
         // 优先处理从“最近打开”传来的 URI
         val pdfUri = intent.getStringExtra("pdf_uri")
         if (pdfUri != null) {
             openPdfFromUri(Uri.parse(pdfUri))
-            return // 直接返回，避免执行后续的文件选择器逻辑
+            return
         }
 
-        // 处理从其他应用接收的 PDF
+        // 处理从其他应用接收的 PDF（分享）
         handleReceivedIntent(intent)
 
-
-
-        // 初始化截图框画笔 (移到这里，确保 layout 已经测量完成)
+        // 初始化截图框画笔
         borderPaint = Paint().apply {
-            color = Color.BLACK // 边框颜色
-            style = Paint.Style.STROKE // 只画边框，不填充内部
-            strokeWidth = 4f // 【重点】边框粗细，可以根据需要调整 (例如 6f)
-            isAntiAlias = false // 【关键】墨水屏不需要抗锯齿，保持像素清晰锐利
-            alpha = 255 // 不透明度 0-255
+            color = Color.BLACK
+            style = Paint.Style.STROKE
+            strokeWidth = 4f
+            isAntiAlias = false
+            alpha = 255
         }
-
-
 
         // 初始化手势检测器（双指缩放）
         scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                // 只在非框选模式下响应双指缩放
                 if (!overlay.isSelecting) {
                     val scaleFactor = detector.scaleFactor
                     displayScale *= scaleFactor
@@ -154,12 +165,9 @@ class PdfReaderActivity : AppCompatActivity() {
         // 设置触摸监听（单指拖动 + 双指缩放）
         preview.setOnTouchListener { _, event ->
             if (overlay.isSelecting) {
-                // 框选模式下不处理拖动，交给 SelectionOverlay
                 return@setOnTouchListener false
             }
-
             scaleDetector?.onTouchEvent(event)
-
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     lastTouch.set(event.x, event.y)
@@ -172,7 +180,6 @@ class PdfReaderActivity : AppCompatActivity() {
                         val dy = event.y - lastTouch.y
                         if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                             isDragging = true
-                            // 平移矩阵
                             val matrix = Matrix(preview.imageMatrix)
                             matrix.postTranslate(dx, dy)
                             preview.imageMatrix = matrix
@@ -184,8 +191,7 @@ class PdfReaderActivity : AppCompatActivity() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isDragging) {
-                        // 如果是点击（非拖动），可以在这里处理点击翻页（可选）
-                        // 但因为我们有按钮，这里暂时不做处理
+                        // 点击翻页（可选）
                     }
                     isDragging = false
                     true
@@ -199,12 +205,10 @@ class PdfReaderActivity : AppCompatActivity() {
         if (pdfPath != null) {
             openPdf(pdfPath)
         } else {
-            // 改为启动我们的文件选择页面
+            // 如果没有传入任何路径，启动文件选择器
             startActivity(Intent(this, FilePickerActivity::class.java))
-            finish() // 关闭当前阅读器，等用户选完文件后再打开新的
+            finish()
         }
-
-
     }
 
     /**
@@ -251,6 +255,9 @@ class PdfReaderActivity : AppCompatActivity() {
 
     /** 从 URI 打开 PDF（不复制，直接使用原始文件） */
     private fun openPdfFromUri(uri: Uri) {
+        // ★ 关键：设置当前文档路径，使设置按钮能正常工作
+        currentDocPath = uri.toString()
+
         try {
             val fileName = getFileNameFromUri(uri) ?: "unknown.pdf"
             val parcelFileDescriptor = contentResolver.openFileDescriptor(uri, "r")
@@ -279,6 +286,7 @@ class PdfReaderActivity : AppCompatActivity() {
     /** 从文件路径打开 PDF（原有逻辑） */
     private fun openPdfFromPath(path: String) {
         try {
+            currentDocPath = path  // ★ 确保有这一行
             val file = File(path)
             val parcelFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
             pdfRenderer = PdfRenderer(parcelFileDescriptor)
@@ -447,6 +455,7 @@ class PdfReaderActivity : AppCompatActivity() {
         val scale = targetWidth.toFloat() / page.width
         val targetHeight = (page.height * scale).toInt()
 
+
         val rawBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
         page.render(rawBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
@@ -458,8 +467,25 @@ class PdfReaderActivity : AppCompatActivity() {
         canvas.drawBitmap(rawBitmap, 0f, 0f, null)
         rawBitmap.recycle()
 
+        // ... 渲染代码 ...
+        val effectiveSettings = resolveEffectiveSettings()
+        // 渲染模式
+        val renderMode = if (effectiveSettings.usePrintMode)
+            PdfRenderer.Page.RENDER_MODE_FOR_PRINT
+        else
+            PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
+        page.render(rawBitmap, null, null, renderMode)
+
+
+
+
+
+        // 应用对比度/亮度/锐化（使用 effectiveSettings 中的值）
+        val processedBitmap = processBitmap(whiteBitmap, effectiveSettings)
+        whiteBitmap.recycle()
+
         // 直接使用 whiteBitmap，不进行任何对比度增强
-        preview.setImageBitmap(whiteBitmap)
+        preview.setImageBitmap(processedBitmap)
 
         // 安全回收旧 Bitmap
         currentBitmap?.recycle()
@@ -473,6 +499,244 @@ class PdfReaderActivity : AppCompatActivity() {
         currentPageIndex = index
         tvPageInfo.text = "${index + 1} / $totalPages"
     }
+
+
+
+
+    private fun showSettingsDialog() {
+        val global = GlobalSettingsManager.load(this)
+        val doc = DocSettingsManager.getSettings(this, currentDocPath)
+
+        var currentContrast = doc.contrast ?: global.contrast
+        var currentBrightness = doc.brightness ?: global.brightness
+        var currentSharpness = doc.sharpness ?: global.sharpness
+        var currentPrintMode = doc.usePrintMode ?: global.usePrintMode
+
+        val builder = AlertDialog.Builder(this)
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 16, 24, 16)
+            setBackgroundColor(android.graphics.Color.WHITE)
+        }
+
+        // 对比度
+        layout.addView(createInputRow("对比度", currentContrast, 1.0f, 2.5f, "1.0~2.5"))
+        // 亮度
+        layout.addView(createInputRow("亮度", currentBrightness.toFloat(), -50f, 50f, "-50~50"))
+        // 锐化
+        layout.addView(createInputRow("锐化", currentSharpness, 0f, 3f, "0~3"))
+        // 打印模式
+        layout.addView(createInputRow("打印模式", if (currentPrintMode) 1f else 0f, 0f, 1f, "0关 1开"))
+
+        // 两个按钮的容器（水平排列）
+        val buttonContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER
+            setPadding(0, 16, 0, 0)
+        }
+
+        // 按钮1：仅本文档
+        val btnLocal = Button(this).apply {
+            text = "仅本文档"
+            setTextColor(android.graphics.Color.BLACK)
+            background = null
+            val border = android.graphics.drawable.ShapeDrawable(android.graphics.drawable.shapes.RectShape())
+            border.paint.style = android.graphics.Paint.Style.STROKE
+            border.paint.color = android.graphics.Color.BLACK
+            border.paint.strokeWidth = 2f
+            background = border
+            setPadding(12, 6, 12, 6)
+            textSize = 15f
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            ).apply { rightMargin = 8 }
+        }
+        buttonContainer.addView(btnLocal)
+
+        // 按钮2：设为全局默认
+        val btnGlobal = Button(this).apply {
+            text = "设为全局默认"
+            setTextColor(android.graphics.Color.BLACK)
+            background = null
+            val border = android.graphics.drawable.ShapeDrawable(android.graphics.drawable.shapes.RectShape())
+            border.paint.style = android.graphics.Paint.Style.STROKE
+            border.paint.color = android.graphics.Color.BLACK
+            border.paint.strokeWidth = 2f
+            background = border
+            setPadding(12, 6, 12, 6)
+            textSize = 15f
+            gravity = android.view.Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            ).apply { leftMargin = 8 }
+        }
+        buttonContainer.addView(btnGlobal)
+
+        layout.addView(buttonContainer)
+
+        builder.setView(layout)
+        val dialog = builder.create()
+        dialog.show()
+
+        // 从布局中获取输入框的工具函数
+        fun getEditText(tag: String): EditText? = layout.findViewWithTag(tag)
+
+        // 读取输入值的函数
+        fun readValues(): SaveValues {
+            val etContrast = getEditText("对比度")
+            val etBrightness = getEditText("亮度")
+            val etSharpness = getEditText("锐化")
+            val etPrintMode = getEditText("打印模式")
+
+            val contrast = etContrast?.text.toString().toFloatOrNull()?.coerceIn(1.0f, 2.5f) ?: currentContrast
+            val brightness = etBrightness?.text.toString().toIntOrNull()?.coerceIn(-50, 50) ?: currentBrightness
+            val sharpness = etSharpness?.text.toString().toFloatOrNull()?.coerceIn(0f, 3f) ?: currentSharpness
+            val printModeValue = etPrintMode?.text.toString().toIntOrNull()?.coerceIn(0, 1) ?: 0
+            val printMode = printModeValue == 1
+            return SaveValues(contrast, brightness, sharpness, printMode)
+        }
+
+        // 按钮点击事件
+        btnLocal.setOnClickListener {
+            val values = readValues()
+            // 保存为本文档设置
+            DocSettingsManager.saveSettings(this, currentDocPath, DocSettings(
+                contrast = values.contrast,
+                brightness = values.brightness,
+                sharpness = values.sharpness,
+                usePrintMode = values.printMode
+            ))
+            // 清除临时覆盖
+            docSettingsOverride = null
+            showPage(currentPageIndex)
+            dialog.dismiss()
+        }
+
+        btnGlobal.setOnClickListener {
+            val values = readValues()
+            // 保存为全局设置
+            GlobalSettingsManager.save(this, GlobalSettings(
+                contrast = values.contrast,
+                brightness = values.brightness,
+                sharpness = values.sharpness,
+                usePrintMode = values.printMode
+            ))
+            // 清除本文档的自定义设置（使其跟随全局）
+            DocSettingsManager.clearSettings(this, currentDocPath)
+            docSettingsOverride = null
+            showPage(currentPageIndex)
+            dialog.dismiss()
+        }
+    }
+
+    // 辅助数据类（用于保存读取的值）
+    data class SaveValues(
+        val contrast: Float,
+        val brightness: Int,
+        val sharpness: Float,
+        val printMode: Boolean
+    )
+
+
+
+
+
+    private fun createInputRow(label: String, initial: Float, min: Float, max: Float, hint: String): View {
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, 8, 0, 8)
+            setBackgroundColor(android.graphics.Color.WHITE)
+        }
+
+        val tvLabel = TextView(this).apply {
+            text = label
+            textSize = 16f
+            minWidth = 56
+            setTextColor(android.graphics.Color.BLACK)
+        }
+        row.addView(tvLabel)
+
+        val editText = EditText(this).apply {
+            setText(String.format("%.1f", initial))
+            inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+            textSize = 16f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(android.graphics.Color.BLACK)
+            background = null
+            val underline = android.graphics.drawable.ShapeDrawable(android.graphics.drawable.shapes.RectShape())
+            underline.paint.style = android.graphics.Paint.Style.STROKE
+            underline.paint.color = android.graphics.Color.BLACK
+            underline.paint.strokeWidth = 1f
+            background = underline
+            setPadding(8, 4, 8, 4)
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            // ★ 设置 Tag 为 label（用于后续查找）
+            tag = label
+        }
+        row.addView(editText)
+
+        val tvHint = TextView(this).apply {
+            text = hint
+            textSize = 12f
+            setTextColor(android.graphics.Color.GRAY)
+            setPadding(8, 0, 0, 0)
+        }
+        row.addView(tvHint)
+
+        return row
+    }
+
+
+    /** 临时应用设置（不保存，仅用于实时预览） */
+    private fun reRenderWithTempSettings(contrast: Float, brightness: Int, sharpness: Float, printMode: Boolean) {
+        // 临时覆盖 docSettings 并重绘
+        val tempGlobal = GlobalSettings(contrast, brightness, sharpness, printMode)
+        // 直接使用临时设置渲染当前页（不保存）
+        // 这里简单起见，我们直接修改 docSettings 并重绘，但不保存
+        // 更好的做法是单独传参给 showPage，但为了简化，我们直接修改 docSettings 并重绘
+        // 注意：这只是临时预览，不会保存
+        docSettingsOverride = tempGlobal // 新增成员变量
+        showPage(currentPageIndex)
+        docSettingsOverride = null
+    }
+
+
+
+    /**
+     * 核心图像处理函数
+     * 根据传入的 DisplaySettings 对 Bitmap 进行亮度、对比度、锐化处理
+     */
+    private fun processBitmap(bitmap: Bitmap, settings: GlobalSettings): Bitmap {
+        var result = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val canvas = Canvas(result)
+        val paint = Paint()
+
+        // 对比度 + 亮度
+        if (settings.contrast != 1.0f || settings.brightness != 0) {
+            val cm = ColorMatrix()
+            val scale = settings.contrast
+            val translate = settings.brightness + (1f - scale) * 127f
+            cm.set(floatArrayOf(
+                scale, 0f, 0f, 0f, translate,
+                0f, scale, 0f, 0f, translate,
+                0f, 0f, scale, 0f, translate,
+                0f, 0f, 0f, 1f, 0f
+            ))
+            paint.colorFilter = ColorMatrixColorFilter(cm)
+            canvas.drawBitmap(result, 0f, 0f, paint)
+        }
+
+        // 锐化（略，可后续实现）
+
+        return result
+    }
+
 
     private fun enhanceContrast(bitmap: Bitmap, contrast: Float): Bitmap {
         val result = bitmap.copy(Bitmap.Config.ARGB_8888, true)
@@ -686,6 +950,51 @@ class PdfReaderActivity : AppCompatActivity() {
             }
             else -> super.onKeyDown(keyCode, event)
         }
+
+    }
+
+
+    private fun resolveEffectiveSettings(): GlobalSettings {
+        return docSettingsOverride ?: run {
+            val global = GlobalSettingsManager.load(this)
+            val doc = DocSettingsManager.getSettings(this, currentDocPath)
+            GlobalSettings(
+                contrast = doc.contrast ?: global.contrast,
+                brightness = doc.brightness ?: global.brightness,
+                sharpness = doc.sharpness ?: global.sharpness,
+                usePrintMode = doc.usePrintMode ?: global.usePrintMode
+            )
+        }
+    }
+    private fun showSaveScopeDialog(contrast: Float, brightness: Int, sharpness: Float, printMode: Boolean) {
+        AlertDialog.Builder(this)
+            .setTitle("保存设置")
+            .setMessage("应用到所有文档还是仅本文档？")
+            .setPositiveButton("仅本文档") { _, _ ->
+                DocSettingsManager.saveSettings(this, currentDocPath, DocSettings(
+                    contrast = contrast,
+                    brightness = brightness,
+                    sharpness = sharpness,
+                    usePrintMode = printMode
+                ))
+                // 清除临时覆盖
+                docSettingsOverride = null
+                showPage(currentPageIndex)
+            }
+            .setNeutralButton("设为全局默认") { _, _ ->
+                GlobalSettingsManager.save(this, GlobalSettings(
+                    contrast = contrast,
+                    brightness = brightness,
+                    sharpness = sharpness,
+                    usePrintMode = printMode
+                ))
+                // 清除本文档的自定义设置（使其跟随全局）
+                DocSettingsManager.clearSettings(this, currentDocPath)
+                docSettingsOverride = null
+                showPage(currentPageIndex)
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     private var dialog: AlertDialog? = null

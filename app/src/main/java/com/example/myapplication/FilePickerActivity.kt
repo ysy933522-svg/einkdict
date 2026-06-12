@@ -7,6 +7,7 @@ import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import java.io.File
+import java.util.Stack
 
 class FilePickerActivity : AppCompatActivity() {
 
@@ -18,12 +19,13 @@ class FilePickerActivity : AppCompatActivity() {
     private lateinit var btnExit: Button
     private lateinit var tvPageInfo: TextView
     private var currentDir: File = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    // 当前目录下所有可显示的文件（文件夹+PDF）
     private var allFiles: Array<File> = emptyArray()
-    // 分页相关
     private var currentPage = 0
     private val pageSize = 15
     private var totalPages = 0
+
+    // 栈：记录进入子目录前的 (上级目录, 当时的页码)
+    private val dirStack = Stack<Pair<File, Int>>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,35 +56,42 @@ class FilePickerActivity : AppCompatActivity() {
             startActivity(Intent(this, RecentFilesActivity::class.java))
         }
 
-        // 返回上级目录
+        // 返回上级目录（带记忆）
         btnGoUp.setOnClickListener { goUp() }
 
-        // 上一页
+        // 上一页（循环）
         btnPrevPage.setOnClickListener {
-            if (currentPage > 0) {
-                currentPage--
+            if (totalPages > 0) {
+                currentPage = if (currentPage > 0) currentPage - 1 else totalPages - 1
                 showPage()
             }
         }
 
-        // 下一页
+        // 下一页（循环）
         btnNextPage.setOnClickListener {
-            if (currentPage < totalPages - 1) {
-                currentPage++
+            if (totalPages > 0) {
+                currentPage = if (currentPage < totalPages - 1) currentPage + 1 else 0
                 showPage()
             }
         }
 
         // 退出返回
-        btnExit.setOnClickListener { finish() }
+        btnExit.setOnClickListener {
+            // 直接启动查单词页面
+            val intent = Intent(this, MainActivity::class.java)
+            startActivity(intent)
+            finish()
+        }
 
-        // 列表项点击：文件夹进入，PDF直接打开
+        // 列表项点击：文件夹进入（记录栈），PDF直接打开
         listView.setOnItemClickListener { _, _, position, _ ->
             val realIndex = currentPage * pageSize + position
             if (realIndex < allFiles.size) {
                 val file = allFiles[realIndex]
                 if (file.isDirectory) {
-                    enterDirectory(file)
+                    // 进入子目录前，将当前目录和页码入栈
+                    dirStack.push(Pair(currentDir, currentPage))
+                    enterDirectory(file, 0)
                 } else {
                     openPdf(file)
                 }
@@ -90,23 +99,24 @@ class FilePickerActivity : AppCompatActivity() {
         }
 
         // 加载初始目录
-        enterDirectory(currentDir)
+        enterDirectory(currentDir, 0)
     }
 
-    private fun enterDirectory(dir: File) {
+    /**
+     * 进入指定目录，并跳转到目标页码
+     */
+    private fun enterDirectory(dir: File, targetPage: Int) {
         if (!dir.exists() || !dir.isDirectory) return
         currentDir = dir
         tvTitle.text = dir.absolutePath
 
-        // 获取所有文件夹和PDF文件，排序：文件夹在前，按名称字母序
         val items = dir.listFiles() ?: emptyArray()
         allFiles = items.filter { file ->
             file.isDirectory || (file.isFile && file.name.endsWith(".pdf", ignoreCase = true))
         }.sortedWith(compareBy({ !it.isDirectory }, { it.name.lowercase() })).toTypedArray()
 
-        // 计算总页数
         totalPages = if (allFiles.isEmpty()) 1 else (allFiles.size + pageSize - 1) / pageSize
-        currentPage = 0
+        currentPage = targetPage.coerceIn(0, totalPages - 1)
         showPage()
     }
 
@@ -115,10 +125,8 @@ class FilePickerActivity : AppCompatActivity() {
         val end = minOf(start + pageSize, allFiles.size)
         val pageFiles = allFiles.slice(start until end)
 
-        // 构造显示名称（文件夹加前缀，PDF加前缀）
         val displayNames = pageFiles.map { file ->
             val prefix = if (file.isDirectory) "📁 " else "📄 "
-            // 文件名过长处理：截断到一定长度（例如30字符），避免换行
             val name = file.name
             if (name.length > 45) prefix + name.take(42) + "..." else prefix + name
         }
@@ -126,20 +134,20 @@ class FilePickerActivity : AppCompatActivity() {
         val adapter = ArrayAdapter<String>(this, R.layout.list_item_file, displayNames)
         listView.adapter = adapter
 
-        // 更新页码显示
         tvPageInfo.text = "${currentPage + 1} / $totalPages"
 
-
-
-        // 更新按钮状态
-        btnPrevPage.isEnabled = currentPage > 0
-        btnNextPage.isEnabled = currentPage < totalPages - 1
+        // 循环模式下，按钮始终可用（不需要禁用）
+        btnPrevPage.isEnabled = true
+        btnNextPage.isEnabled = true
     }
 
+    /**
+     * 返回上级目录，并从栈中恢复上次浏览的页码
+     */
     private fun goUp() {
-        val parent = currentDir.parentFile
-        if (parent != null && parent.canRead()) {
-            enterDirectory(parent)
+        if (dirStack.isNotEmpty()) {
+            val (parentDir, page) = dirStack.pop()
+            enterDirectory(parentDir, page)
         } else {
             Toast.makeText(this, "已到根目录", Toast.LENGTH_SHORT).show()
         }
