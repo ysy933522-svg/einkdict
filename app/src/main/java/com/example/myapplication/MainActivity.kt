@@ -29,12 +29,6 @@ import android.widget.TextView
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.artifex.mupdf.fitz.Document
-import com.artifex.mupdf.fitz.Page
-import com.artifex.mupdf.fitz.Pixmap
-import com.artifex.mupdf.fitz.Device
-import com.artifex.mupdf.fitz.Matrix
-import com.artifex.mupdf.fitz.ColorSpace
 
 class MainActivity : Activity() {
 
@@ -175,12 +169,6 @@ class MainActivity : Activity() {
                 startActivity(intent)
             }
         }
-
-        findViewById<Button>(R.id.btnPdfReader).setOnClickListener {
-            startActivity(Intent(this, PdfReaderActivity::class.java))
-        }
-
-
         val btnToggleMenu = findViewById<Button>(R.id.btn_toggle_menu)
         val layoutMenuButtons = findViewById<LinearLayout>(R.id.layout_menu_buttons)
 
