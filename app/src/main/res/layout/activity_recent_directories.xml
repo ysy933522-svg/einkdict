@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/white">
+
+    <!-- 顶部：标题 + 返回按钮 -->
+    <LinearLayout
+        android:id="@+id/top_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="最近目录"
+            android:textSize="16sp"
+            android:textColor="@android:color/black" />
+
+
+    </LinearLayout>
+
+    <!-- 目录列表（可滚动） -->
+    <ScrollView
+        android:id="@+id/scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_below="@id/top_bar"
+        android:layout_above="@id/bottom_pagination">
+
+        <LinearLayout
+            android:id="@+id/layout_recent_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </ScrollView>
+
+    <!-- 底部右下角：分页控制 -->
+    <LinearLayout
+        android:id="@+id/bottom_pagination"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:layout_margin="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/btn_prev_page"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="◀"
+            android:textSize="12sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:padding="4dp"
+            android:minWidth="0dp" />
+
+        <TextView
+            android:id="@+id/tv_page_info"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="8dp"
+            android:textSize="12sp"
+            android:textColor="@android:color/black"
+            android:text="1/1" />
+
+        <Button
+            android:id="@+id/btn_next_page"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="▶"
+            android:textSize="12sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:padding="4dp"
+            android:minWidth="0dp" />
+        <Button
+            android:id="@+id/btn_back"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="返回"
+            android:textSize="12sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:padding="4dp" />
+
+    </LinearLayout>
+
+</RelativeLayout>

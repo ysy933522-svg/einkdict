@@ -1,18 +1,23 @@
 package com.example.myapplication
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.Matrix
 import android.os.Bundle
 import android.view.MotionEvent
 import android.widget.*
 import java.io.File
-import java.security.MessageDigest
 import java.util.*
 import kotlin.collections.ArrayList
 
 class ImageViewerActivity : Activity() {
 
+    companion object {
+        private const val REQUEST_CODE_DIRECTORY = 1001
+        private val dirCache = mutableMapOf<String, Pair<List<File>, Long>>()
+    }
 
     private var currentScale = 1.0f
     private val maxScale = 4.0f
@@ -21,11 +26,6 @@ class ImageViewerActivity : Activity() {
     private var lastTouchY = 0f
     private var isDragging = false
     private val touchSlop = 5
-
-    companion object {
-        // 静态缓存：目录路径 -> (文件列表, 目录最后修改时间)
-        private val dirCache = mutableMapOf<String, Pair<List<File>, Long>>()
-    }
 
     private lateinit var ivImage: ImageView
     private lateinit var btnFamiliar: Button
@@ -40,16 +40,12 @@ class ImageViewerActivity : Activity() {
 
     private lateinit var dbHelper: DictDbHelper
 
-    // 从配置文件加载的目录列表
-    private var imageDirectories = mutableListOf<String>()
-    private var currentDirIndex = 0
+    private var currentDirectoryPath: String = ""
     private var recursiveScan = false
 
-    // 当前目录下的图片文件列表
     private var imageFiles = ArrayList<File>()
     private var currentIndex = 0
 
-    // 内存中的分数缓存：pathHash -> (familiarity, strangeness)
     private val scoreCache = mutableMapOf<String, Pair<Int, Int>>()
     private var hasUnsavedChanges = false
 
@@ -72,12 +68,12 @@ class ImageViewerActivity : Activity() {
 
         dbHelper = (application as MyApplication).dbHelper
 
-        // 后台线程初始化（避免阻塞 UI）
+        applyEinkStyle()
+
         Thread {
             waitForDbAndScan()
         }.start()
 
-        // 设置点击事件
         btnFamiliar.setOnClickListener { onFamiliar() }
         btnStrange.setOnClickListener { onStrange() }
         btnSave.setOnClickListener { saveScores() }
@@ -87,20 +83,30 @@ class ImageViewerActivity : Activity() {
         btnReload.setOnClickListener { reloadConfig() }
         btnBack.setOnClickListener { finish() }
 
-        // 放大缩小按钮
         findViewById<Button>(R.id.btn_zoom_in).setOnClickListener { zoomIn() }
         findViewById<Button>(R.id.btn_zoom_out).setOnClickListener { zoomOut() }
 
-        // 设置 ImageView 可点击，并添加触摸监听（用于拖动）
         ivImage.isClickable = true
         ivImage.setOnTouchListener { _, event -> handleTouch(event) }
-
-
-
     }
 
+    private fun applyEinkStyle() {
+        val buttons = listOf(
+            btnFamiliar, btnStrange, btnSave, btnPrev, btnNext,
+            btnSwitchDir, btnReload, btnBack,
+            findViewById<Button>(R.id.btn_zoom_in),
+            findViewById<Button>(R.id.btn_zoom_out)
+        )
+        for (btn in buttons) {
+            btn.setTextColor(Color.BLACK)
+            btn.setBackgroundColor(Color.WHITE)
+            btn.elevation = 0f
+            btn.stateListAnimator = null
+        }
+    }
 
-    /** 重置缩放为 fitCenter */
+    // ==================== 缩放与拖动 ====================
+
     private fun resetZoom() {
         currentScale = 1.0f
         ivImage.scaleType = ImageView.ScaleType.MATRIX
@@ -120,7 +126,6 @@ class ImageViewerActivity : Activity() {
         ivImage.invalidate()
     }
 
-    /** 应用当前缩放倍数（以视图中心为锚点） */
     private fun applyZoom() {
         val drawable = ivImage.drawable ?: return
         val bmpW = drawable.intrinsicWidth.toFloat()
@@ -129,14 +134,12 @@ class ImageViewerActivity : Activity() {
         val viewH = ivImage.height.toFloat()
         if (bmpW <= 0 || bmpH <= 0 || viewW <= 0 || viewH <= 0) return
 
-        // 先计算 fitCenter 的基础矩阵
         val initScale = minOf(viewW / bmpW, viewH / bmpH)
         val initOffsetX = (viewW - bmpW * initScale) / 2f
         val initOffsetY = (viewH - bmpH * initScale) / 2f
         val m = Matrix()
         m.setScale(initScale, initScale)
         m.postTranslate(initOffsetX, initOffsetY)
-        // 在此基础上应用用户缩放（以视图中心为锚点）
         val cx = viewW / 2f
         val cy = viewH / 2f
         m.postScale(currentScale, currentScale, cx, cy)
@@ -144,21 +147,18 @@ class ImageViewerActivity : Activity() {
         ivImage.invalidate()
     }
 
-    /** 放大 */
     private fun zoomIn() {
         currentScale *= 1.25f
         if (currentScale > maxScale) currentScale = maxScale
         applyZoom()
     }
 
-    /** 缩小 */
     private fun zoomOut() {
         currentScale /= 1.25f
         if (currentScale < minScale) currentScale = minScale
         applyZoom()
     }
 
-    /** 处理触摸事件（单指拖动平移） */
     private fun handleTouch(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -168,7 +168,6 @@ class ImageViewerActivity : Activity() {
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
-                // 只有放大后才允许拖动
                 if (currentScale <= 1.0f) return false
                 val dx = event.x - lastTouchX
                 val dy = event.y - lastTouchY
@@ -191,66 +190,62 @@ class ImageViewerActivity : Activity() {
         return false
     }
 
-
-    // ---------- 初始化 ----------
+    // ==================== 初始化 ====================
 
     private fun waitForDbAndScan() {
         while (!dbHelper.isMemoryReady) {
             Thread.sleep(200)
         }
         runOnUiThread {
-            loadDirectoriesFromFile()
-            scanCurrentDirectory()
+            switchDirectory()
         }
     }
 
-    /** 从文本文件读取目录列表 */
-    private fun loadDirectoriesFromFile() {
-        imageDirectories.clear()
-        val file = File("/sdcard/dicts_sqlite_diy_/image_dirs.txt")
-        if (!file.exists()) {
-            imageDirectories.add("/sdcard/Pictures")
-            imageDirectories.add("/sdcard/DCIM/Camera")
-            return
-        }
-        try {
-            file.readLines().forEach { line ->
-                val trimmed = line.trim()
-                if (trimmed.isNotEmpty() && !trimmed.startsWith("#")) {
-                    imageDirectories.add(trimmed)
-                }
+    // ==================== 目录选择 ====================
+
+    private fun switchDirectory() {
+        if (hasUnsavedChanges) saveScores()
+        val intent = Intent(this, DirectoryPickerActivity::class.java)
+        startActivityForResult(intent, REQUEST_CODE_DIRECTORY)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CODE_DIRECTORY && resultCode == Activity.RESULT_OK) {
+            val selectedPath = data?.getStringExtra(DirectoryPickerActivity.EXTRA_SELECTED_PATH)
+            if (selectedPath != null) {
+                currentDirectoryPath = selectedPath
+                dirCache.clear()
+                scanCurrentDirectory()
+            } else {
+                Toast.makeText(this, "未选择目录", Toast.LENGTH_SHORT).show()
             }
-        } catch (e: Exception) {
-            ToastUtil.show(this, "读取配置文件失败: ${e.message}")
-        }
-        if (imageDirectories.isEmpty()) {
-            imageDirectories.add("/sdcard/Pictures")
-            imageDirectories.add("/sdcard/DCIM/Camera")
         }
     }
 
-    /** 扫描当前目录下的图片（只读文件系统，不写数据库） */
+    // ==================== 扫描目录 ====================
+
     private fun scanCurrentDirectory() {
-        if (currentDirIndex >= imageDirectories.size) return
-        val dirPath = imageDirectories[currentDirIndex]
-        val dir = File(dirPath)
-        if (!dir.exists() || !dir.isDirectory) {
-            ToastUtil.show(this, "目录不存在: $dirPath")
+        if (currentDirectoryPath.isEmpty()) {
+            Toast.makeText(this, "尚未选择目录", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 检查缓存是否有效
-        val cached = dirCache[dirPath]
+        val dir = File(currentDirectoryPath)
+        if (!dir.exists() || !dir.isDirectory) {
+            Toast.makeText(this, "目录不存在: $currentDirectoryPath", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val cached = dirCache[currentDirectoryPath]
         val dirLastModified = dir.lastModified()
         if (cached != null && cached.second == dirLastModified) {
-            // 缓存有效，直接使用
             imageFiles.clear()
             imageFiles.addAll(cached.first)
         } else {
-            // 缓存失效，重新扫描（仅文件系统操作，不写数据库）
             imageFiles.clear()
             scanDir(dir, recursiveScan)
-            dirCache[dirPath] = Pair(imageFiles.toList(), dirLastModified)
+            dirCache[currentDirectoryPath] = Pair(imageFiles.toList(), dirLastModified)
         }
 
         if (imageFiles.isNotEmpty()) {
@@ -261,12 +256,11 @@ class ImageViewerActivity : Activity() {
             }
         } else {
             runOnUiThread {
-                ToastUtil.show(this, "该目录下没有图片")
+                Toast.makeText(this, "该目录下没有图片", Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    /** 递归扫描目录 */
     private fun scanDir(dir: File, recursive: Boolean) {
         val files = dir.listFiles() ?: return
         val extensions = listOf("jpg", "jpeg", "png", "gif", "bmp", "webp")
@@ -282,7 +276,7 @@ class ImageViewerActivity : Activity() {
         }
     }
 
-    // ---------- 数字按钮 ----------
+    // ==================== 数字按钮 ====================
 
     private fun generateNumberButtons() {
         layoutNumberButtons.removeAllViews()
@@ -308,8 +302,9 @@ class ImageViewerActivity : Activity() {
             val btn = Button(this)
             btn.text = (i + 1).toString()
             btn.textSize = 13f
-            btn.setTextColor(android.graphics.Color.BLACK)
-            btn.background = null
+            btn.setTextColor(Color.BLACK)
+            btn.setBackgroundColor(Color.WHITE)
+            btn.elevation = 0f
             btn.stateListAnimator = null
             btn.setPadding(4, 0, 4, 0)
 
@@ -334,35 +329,76 @@ class ImageViewerActivity : Activity() {
         }
     }
 
-    // ---------- 图片加载 ----------
+    // ==================== 图片加载（修复抖动） ====================
+
+    // ==================== 图片加载（修复抖动） ====================
 
     private fun loadCurrentImage() {
         if (imageFiles.isEmpty()) return
         val file = imageFiles[currentIndex]
         if (!file.exists()) {
-            ToastUtil.show(this, "图片不存在")
+            Toast.makeText(this, "图片不存在", Toast.LENGTH_SHORT).show()
             return
         }
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-        if (bitmap != null) {
-            ivImage.setImageBitmap(bitmap)
-        } else {
-            ToastUtil.show(this, "无法加载图片")
-        }
-        // 从内存缓存读取分数（不从数据库读取，因为分数只存在于内存和保存时写入）
 
+        // 解码图片
+        val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+        if (bitmap == null) {
+            Toast.makeText(this, "无法加载图片", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 直接设置新图片，不清除旧图（避免空白闪烁）
+        ivImage.setImageBitmap(bitmap)
+
+        // 重置缩放状态
+        currentScale = 1.0f
+        ivImage.scaleType = ImageView.ScaleType.MATRIX
+
+        // 立即尝试应用 fitCenter 矩阵（如果 ImageView 已有尺寸）
+        if (ivImage.width > 0 && ivImage.height > 0) {
+            applyFitCenterMatrix()
+        } else {
+            // 等待布局完成后应用
+            ivImage.viewTreeObserver.addOnGlobalLayoutListener(object :
+                android.view.ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    ivImage.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    applyFitCenterMatrix()
+                }
+            })
+        }
+
+        // 分数缓存（与之前相同）
         val filePath = file.absolutePath
         if (!scoreCache.containsKey(filePath)) {
-            // 首次查看该图片，尝试从数据库加载历史分数（如果有）
             val dbScore = dbHelper.getImageScore(filePath)
             scoreCache[filePath] = dbScore ?: Pair(0, 0)
         }
-
-        // 延迟重置缩放（确保布局已测量）
-        ivImage.post { resetZoom() }
     }
 
-    // ---------- 操作 ----------
+    /**
+     * 将图片以 fitCenter 方式居中显示（不缩放，即原始大小适应视图）
+     */
+    private fun applyFitCenterMatrix() {
+        val drawable = ivImage.drawable ?: return
+        val bmpW = drawable.intrinsicWidth.toFloat()
+        val bmpH = drawable.intrinsicHeight.toFloat()
+        val viewW = ivImage.width.toFloat()
+        val viewH = ivImage.height.toFloat()
+        if (bmpW <= 0 || bmpH <= 0 || viewW <= 0 || viewH <= 0) return
+
+        val scale = minOf(viewW / bmpW, viewH / bmpH)
+        val offsetX = (viewW - bmpW * scale) / 2f
+        val offsetY = (viewH - bmpH * scale) / 2f
+        val m = Matrix()
+        m.setScale(scale, scale)
+        m.postTranslate(offsetX, offsetY)
+        ivImage.imageMatrix = m
+        ivImage.invalidate()
+    }
+
+    // ==================== 操作 ====================
 
     private fun onFamiliar() {
         if (imageFiles.isEmpty()) return
@@ -398,31 +434,19 @@ class ImageViewerActivity : Activity() {
         generateNumberButtons()
     }
 
-    /** 切换目录：先保存当前目录分数，再扫描下一个目录 */
-    private fun switchDirectory() {
-        if (hasUnsavedChanges) saveScores() // 自动保存当前目录分数
-        currentDirIndex = (currentDirIndex + 1) % imageDirectories.size
-        scanCurrentDirectory()
-    }
-
-    /** 刷新：清除缓存，强制重新扫描当前目录 */
     private fun reloadConfig() {
         if (hasUnsavedChanges) saveScores()
         dirCache.clear()
-        loadDirectoriesFromFile()
-        currentDirIndex = 0
-        scanCurrentDirectory()
+        switchDirectory()
     }
 
-    /** 保存分数：将内存中所有分数批量写入数据库 */
     private fun saveScores() {
         if (!hasUnsavedChanges) {
-            ToastUtil.show(this, "没有需要保存的数据")
+            Toast.makeText(this, "没有需要保存的数据", Toast.LENGTH_SHORT).show()
             return
         }
         val updates = mutableMapOf<String, Pair<Int, Int>>()
         for ((hash, score) in scoreCache) {
-            // 只保存有分数的（熟悉或陌生至少有一次操作）
             if (score.first > 0 || score.second > 0) {
                 updates[hash] = score
             }
@@ -431,7 +455,7 @@ class ImageViewerActivity : Activity() {
             dbHelper.batchUpdateImageScores(updates)
         }
         hasUnsavedChanges = false
-        ToastUtil.show(this, "已保存")
+        Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
     }
 
     override fun onPause() {
@@ -443,6 +467,4 @@ class ImageViewerActivity : Activity() {
         if (hasUnsavedChanges) saveScores()
         super.onBackPressed()
     }
-
-
 }

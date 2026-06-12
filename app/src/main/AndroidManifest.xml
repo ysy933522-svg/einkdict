@@ -84,6 +84,11 @@
 
         <activity android:name=".RecentFilesActivity"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
+        <activity
+            android:name=".DirectoryPickerActivity"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
+        <activity android:name=".RecentDirectoriesActivity" />
 
     </application>
 
