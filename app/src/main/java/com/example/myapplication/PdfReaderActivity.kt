@@ -76,6 +76,7 @@ class PdfReaderActivity : AppCompatActivity() {
         setContentView(R.layout.activity_pdf_reader)
 
 
+
         // 全屏沉浸模式
         window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -108,6 +109,21 @@ class PdfReaderActivity : AppCompatActivity() {
             saveReadingProgress(currentPageIndex) // 保存进度
             finish()
         }
+
+
+
+
+        // 优先处理从“最近打开”传来的 URI
+        val pdfUri = intent.getStringExtra("pdf_uri")
+        if (pdfUri != null) {
+            openPdfFromUri(Uri.parse(pdfUri))
+            return // 直接返回，避免执行后续的文件选择器逻辑
+        }
+
+        // 处理从其他应用接收的 PDF
+        handleReceivedIntent(intent)
+
+
 
         // 初始化截图框画笔 (移到这里，确保 layout 已经测量完成)
         borderPaint = Paint().apply {
@@ -187,7 +203,119 @@ class PdfReaderActivity : AppCompatActivity() {
             startActivity(Intent(this, FilePickerActivity::class.java))
             finish() // 关闭当前阅读器，等用户选完文件后再打开新的
         }
+
+
     }
+
+    /**
+     * 通过 Content URI 直接打开 PDF（不复制文件）
+     * 用于处理系统分享和最近打开记录中的 URI
+     */
+
+
+    override fun onNewIntent(newIntent: Intent?) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+        handleReceivedIntent(newIntent)
+    }
+
+    private var sharedUri: Uri? = null // 保存分享来的 URI
+
+    private fun handleReceivedIntent(intent: Intent?) {
+        when (intent?.action) {
+            Intent.ACTION_VIEW -> {
+                val uri = intent.data
+                if (uri != null) {
+                    sharedUri = uri
+                    openPdfFromUri(uri)
+                }
+            }
+            Intent.ACTION_SEND -> {
+                val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                if (uri != null) {
+                    sharedUri = uri
+                    openPdfFromUri(uri)
+                }
+            }
+            else -> {
+                val pdfPath = intent?.getStringExtra("pdf_path")
+                if (pdfPath != null) {
+                    openPdfFromPath(pdfPath)
+                } else {
+                    startActivity(Intent(this, FilePickerActivity::class.java))
+                    finish()
+                }
+            }
+        }
+    }
+
+    /** 从 URI 打开 PDF（不复制，直接使用原始文件） */
+    private fun openPdfFromUri(uri: Uri) {
+        try {
+            val fileName = getFileNameFromUri(uri) ?: "unknown.pdf"
+            val parcelFileDescriptor = contentResolver.openFileDescriptor(uri, "r")
+            if (parcelFileDescriptor == null) {
+                ToastUtil.show(this, "无法打开文件")
+                return
+            }
+            pdfRenderer = PdfRenderer(parcelFileDescriptor)
+            totalPages = pdfRenderer!!.pageCount
+            currentPageIndex = 0
+
+            val savedPage = getReadingProgress(uri.toString())
+            if (savedPage > 0 && savedPage < totalPages) {
+                currentPageIndex = savedPage
+            }
+            showPage(currentPageIndex)
+
+            // 保存最近打开记录（使用 URI 字符串和文件名）
+            RecentFilesActivity.saveRecentPath(this, uri.toString(), fileName)
+        } catch (e: Exception) {
+            ToastUtil.show(this, "打开PDF失败: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    /** 从文件路径打开 PDF（原有逻辑） */
+    private fun openPdfFromPath(path: String) {
+        try {
+            val file = File(path)
+            val parcelFileDescriptor = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            pdfRenderer = PdfRenderer(parcelFileDescriptor)
+            totalPages = pdfRenderer!!.pageCount
+            currentPageIndex = 0
+
+            val savedPage = getReadingProgress(path)
+            if (savedPage > 0 && savedPage < totalPages) {
+                currentPageIndex = savedPage
+            }
+            showPage(currentPageIndex)
+            // 【新增】获取文件名
+            val currentFileName = getFileNameFromPath(path)
+            RecentFilesActivity.saveRecentPath(this, path, currentFileName)
+        } catch (e: Exception) {
+            ToastUtil.show(this, "打开PDF失败: ${e.message}")
+            e.printStackTrace()
+        }
+    }
+
+    /** 从 URI 提取文件名 */
+    public fun getFileNameFromUri(uri: Uri): String? {
+        var name: String? = null
+        val cursor = contentResolver.query(uri, null, null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0) {
+                    name = it.getString(nameIndex)
+                }
+            }
+        }
+        return name
+    }
+
+
+
 
     private fun saveReadingProgress(pageIndex: Int) {
         val pdfPath = intent.getStringExtra("pdf_path") ?: return
@@ -259,6 +387,33 @@ class PdfReaderActivity : AppCompatActivity() {
         return out.absolutePath
     }
 
+    /** 根据路径提取文件名 */
+    private fun getFileNameFromPath(path: String): String {
+        return try {
+            // 情况1：如果是普通的本地文件路径 (file:// 或直接路径)
+            if (!path.startsWith("content://")) {
+                return File(path).name
+            }
+
+            // 情况2：如果是 Content URI (分享过来的文件通常属于这种情况)
+            val cursor = contentResolver.query(Uri.parse(path), null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1) {
+                        return it.getString(nameIndex)
+                    }
+                }
+            }
+            // 兜底默认名
+            "未知文件.pdf"
+        } catch (e: Exception) {
+            "未知文件.pdf"
+        }
+    }
+
+
+
     private fun openPdf(path: String) {
         try {
             val file = File(path)
@@ -273,8 +428,9 @@ class PdfReaderActivity : AppCompatActivity() {
 
             }
             showPage(currentPageIndex)
-
-            RecentFilesActivity.saveRecentPath(this, path)
+            // 【新增】获取文件名
+            val currentFileName = getFileNameFromPath(path)
+            RecentFilesActivity.saveRecentPath(this, path, currentFileName)
         } catch (e: Exception) {
             ToastUtil.show(this,  "打开PDF失败: ${e.message}")
             e.printStackTrace()
@@ -295,25 +451,21 @@ class PdfReaderActivity : AppCompatActivity() {
         page.render(rawBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
 
-        // 白色背景处理
+        // 白色背景处理（解决透明区域变黑的问题）
         val whiteBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(whiteBitmap)
         canvas.drawColor(Color.WHITE)
         canvas.drawBitmap(rawBitmap, 0f, 0f, null)
         rawBitmap.recycle()
 
-        // 增强对比度
-        val enhancedBitmap = enhanceContrast(whiteBitmap, 1.6f)
-        whiteBitmap.recycle() // 释放中间 Bitmap
-
-        // 设置到 ImageView（必须先设置新图）
-        preview.setImageBitmap(enhancedBitmap)
+        // 直接使用 whiteBitmap，不进行任何对比度增强
+        preview.setImageBitmap(whiteBitmap)
 
         // 安全回收旧 Bitmap
         currentBitmap?.recycle()
-        currentBitmap = enhancedBitmap
+        currentBitmap = whiteBitmap
 
-        // 重置缩放状态（可选）
+        // 重置缩放状态
         displayScale = 1.0f
         preview.scaleType = ImageView.ScaleType.FIT_CENTER
         preview.imageMatrix = null

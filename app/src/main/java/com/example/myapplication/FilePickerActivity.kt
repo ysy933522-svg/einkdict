@@ -123,7 +123,7 @@ class FilePickerActivity : AppCompatActivity() {
             if (name.length > 45) prefix + name.take(42) + "..." else prefix + name
         }
 
-        val adapter = ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, displayNames)
+        val adapter = ArrayAdapter<String>(this, R.layout.list_item_file, displayNames)
         listView.adapter = adapter
 
         // 更新页码显示

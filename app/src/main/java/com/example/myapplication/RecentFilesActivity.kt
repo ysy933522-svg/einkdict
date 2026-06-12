@@ -2,6 +2,7 @@ package com.example.myapplication
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.*
@@ -41,33 +42,59 @@ class RecentFilesActivity : AppCompatActivity() {
         }
 
         btnBack.setOnClickListener { finish() }
-
         listView.setOnItemClickListener { _, _, position, _ ->
             val paths = getRecentPaths(this)
             if (position < paths.size) {
-                val file = File(paths[position])
-                if (file.exists()) {
+                val pathOrUri = paths[position]
+                if (pathOrUri.startsWith("content://")) {
+                    // 直接打开 URI
                     val intent = Intent(this, PdfReaderActivity::class.java)
-                    intent.putExtra("pdf_path", file.absolutePath)
+                    intent.putExtra("pdf_uri", pathOrUri)
                     startActivity(intent)
                 } else {
-                    Toast.makeText(this, "文件已不存在", Toast.LENGTH_SHORT).show()
+                    val file = File(pathOrUri)
+                    if (file.exists()) {
+                        val intent = Intent(this, PdfReaderActivity::class.java)
+                        intent.putExtra("pdf_path", file.absolutePath)
+                        startActivity(intent)
+                    } else {
+                        Toast.makeText(this, "文件已不存在", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
     }
-
+    /** 从 URI 提取文件名 */
+    public fun getFileNameFromUri(uri: Uri): String? {
+        var name: String? = null
+        val cursor = contentResolver.query(uri, null, null, null, null)
+        cursor?.use {
+            if (it.moveToFirst()) {
+                val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (nameIndex >= 0) {
+                    name = it.getString(nameIndex)
+                }
+            }
+        }
+        return name
+    }
     private fun loadRecentFiles() {
         val paths = getRecentPaths(this)
         if (paths.isEmpty()) {
-            listView.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, arrayOf("暂无最近打开的文件"))
+            listView.adapter = ArrayAdapter(this, R.layout.list_item_file, arrayOf("暂无最近打开的文件"))
             btnClear.isEnabled = false
         } else {
             val displayNames = paths.map { path ->
-                val file = File(path)
-                if (file.exists()) file.name else "[已删除] " + file.name
+                if (path.startsWith("content://")) {
+                    // 尝试获取文件名
+                    val fileName = getFileNameFromUri(Uri.parse(path))
+                    fileName ?: "[分享文件]"
+                } else {
+                    val file = File(path)
+                    if (file.exists()) file.name else "[已删除] " + file.name
+                }
             }
-            listView.adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, displayNames)
+            listView.adapter = ArrayAdapter(this, R.layout.list_item_file, displayNames)
             btnClear.isEnabled = true
         }
     }
@@ -76,7 +103,7 @@ class RecentFilesActivity : AppCompatActivity() {
         private const val KEY_PATHS = "paths"
         private const val MAX_RECORDS = 20
 
-        fun saveRecentPath(context: Context, path: String) {
+        fun saveRecentPath(context: Context, path: String, fileName: String) {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             // 读取现有的 JSON 字符串
             val jsonStr = try {
@@ -122,4 +149,5 @@ class RecentFilesActivity : AppCompatActivity() {
                 .edit().putString(KEY_PATHS, "[]").apply()
         }
     }
+
 }

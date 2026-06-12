@@ -52,8 +52,32 @@
 
 
         <activity android:name=".PdfReaderActivity"
+            android:exported="true"
             android:theme="@style/Theme.AppCompat.NoActionBar"
-            android:configChanges="orientation|screenSize" />
+            android:configChanges="orientation|screenSize">
+
+
+            <!-- 原有启动入口（如果有） -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- 新增：接收来自其他应用分享的 PDF 文件 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+
+            <!-- 新增：接收通过“分享”功能发送的 PDF -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+
+        </activity>
 
         <activity android:name=".FilePickerActivity"
             android:theme="@style/Theme.AppCompat.NoActionBar" />
