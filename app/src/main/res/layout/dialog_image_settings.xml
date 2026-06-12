@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@android:color/white"
+    android:padding="16dp">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="图像设置"
+        android:textSize="16sp"
+        android:textColor="@android:color/black"
+        android:gravity="center"
+        android:paddingBottom="12dp" />
+
+    <!-- 清晰度 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:text="清晰度"
+            android:textSize="14sp"
+            android:textColor="@android:color/black" />
+
+        <EditText
+            android:id="@+id/et_brightness"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:inputType="numberDecimal|numberSigned"
+            android:textSize="14sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:hint="0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="(-255~255)"
+            android:textSize="11sp"
+            android:textColor="#666666"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
+    <!-- 锐化 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:text="锐化"
+            android:textSize="14sp"
+            android:textColor="@android:color/black" />
+
+        <EditText
+            android:id="@+id/et_contrast"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:inputType="numberDecimal"
+            android:textSize="14sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:hint="1.0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="(0.1~3.0)"
+            android:textSize="11sp"
+            android:textColor="#666666"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
+    <!-- 对比度 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="6dp">
+
+        <TextView
+            android:layout_width="64dp"
+            android:layout_height="wrap_content"
+            android:text="对比度"
+            android:textSize="14sp"
+            android:textColor="@android:color/black" />
+
+        <EditText
+            android:id="@+id/et_saturation"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:inputType="numberDecimal"
+            android:textSize="14sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:hint="1.0" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="(0.0~2.0)"
+            android:textSize="11sp"
+            android:textColor="#666666"
+            android:layout_marginStart="4dp" />
+    </LinearLayout>
+
+    <!-- 按钮行（白底延续感：想“线隔开”就留 paddingTop，不想就去掉） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:paddingTop="12dp">
+
+        <Button
+            android:id="@+id/btn_reset"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="还原"
+            android:textSize="13sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:padding="6dp" />
+
+        <Button
+            android:id="@+id/btn_ok"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="确定"
+            android:textSize="13sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:padding="6dp" />
+
+        <Button
+            android:id="@+id/btn_cancel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="取消"
+            android:textSize="13sp"
+            android:textColor="@android:color/black"
+            android:background="@android:color/white"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:padding="6dp" />
+    </LinearLayout>
+</LinearLayout>

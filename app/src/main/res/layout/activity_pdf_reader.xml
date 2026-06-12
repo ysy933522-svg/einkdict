@@ -138,6 +138,20 @@
                 android:textSize="20sp"
                 android:backgroundTint="@android:color/transparent"
                 android:stateListAnimator="@null" />
+            <Button
+                android:id="@+id/btn_image_viewer"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
+                android:paddingStart="5dp"
+                android:paddingEnd="5dp"
+                android:text="看图"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                android:backgroundTint="@android:color/transparent"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="1dp"/>
 
             <Button
                 android:id="@+id/btnBack"

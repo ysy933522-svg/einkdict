@@ -1,10 +1,11 @@
 package com.example.myapplication
 
 import android.app.Activity
+import android.app.Dialog
+import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
-import android.graphics.Color
-import android.graphics.Matrix
+import android.content.SharedPreferences
+import android.graphics.*
 import android.os.Bundle
 import android.view.MotionEvent
 import android.widget.*
@@ -17,8 +18,13 @@ class ImageViewerActivity : Activity() {
     companion object {
         private const val REQUEST_CODE_DIRECTORY = 1001
         private val dirCache = mutableMapOf<String, Pair<List<File>, Long>>()
+        private const val PREFS_NAME = "image_viewer_prefs"
+        private const val KEY_LAST_DIR = "last_selected_dir"
+        private const val KEY_BRIGHTNESS = "brightness"
+        private const val KEY_CONTRAST = "contrast"
+        private const val KEY_SATURATION = "saturation"
     }
-
+    private lateinit var filterPrefs: SharedPreferences
     private var currentScale = 1.0f
     private val maxScale = 4.0f
     private val minScale = 0.5f
@@ -36,6 +42,7 @@ class ImageViewerActivity : Activity() {
     private lateinit var btnSwitchDir: Button
     private lateinit var btnReload: Button
     private lateinit var btnBack: Button
+    private lateinit var btnSettings: Button
     private lateinit var layoutNumberButtons: LinearLayout
 
     private lateinit var dbHelper: DictDbHelper
@@ -48,6 +55,13 @@ class ImageViewerActivity : Activity() {
 
     private val scoreCache = mutableMapOf<String, Pair<Int, Int>>()
     private var hasUnsavedChanges = false
+
+    // 图像滤镜参数
+    private var brightness: Float = 0f
+    private var contrast: Float = 1f
+    private var saturation: Float = 1f
+
+    private lateinit var prefs: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,9 +78,16 @@ class ImageViewerActivity : Activity() {
         btnSwitchDir = findViewById(R.id.btn_switch_dir)
         btnReload = findViewById(R.id.btn_reload)
         btnBack = findViewById(R.id.btn_back)
+        btnSettings = findViewById(R.id.btn_settings)
         layoutNumberButtons = findViewById(R.id.layout_number_buttons)
 
         dbHelper = (application as MyApplication).dbHelper
+
+        // 加载保存的参数
+        prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        brightness = prefs.getFloat(KEY_BRIGHTNESS, 0f)
+        contrast = prefs.getFloat(KEY_CONTRAST, 1f)
+        saturation = prefs.getFloat(KEY_SATURATION, 1f)
 
         applyEinkStyle()
 
@@ -82,18 +103,25 @@ class ImageViewerActivity : Activity() {
         btnSwitchDir.setOnClickListener { switchDirectory() }
         btnReload.setOnClickListener { reloadConfig() }
         btnBack.setOnClickListener { finish() }
+        btnSettings.setOnClickListener { showSettingsDialog() }
 
         findViewById<Button>(R.id.btn_zoom_in).setOnClickListener { zoomIn() }
         findViewById<Button>(R.id.btn_zoom_out).setOnClickListener { zoomOut() }
 
         ivImage.isClickable = true
         ivImage.setOnTouchListener { _, event -> handleTouch(event) }
+
+
+        // "FilterPrefs" 是你给这个偏好设置文件起的名字，可以自定义
+        filterPrefs = getSharedPreferences("FilterPrefs", Context.MODE_PRIVATE)
+
+
     }
 
     private fun applyEinkStyle() {
         val buttons = listOf(
             btnFamiliar, btnStrange, btnSave, btnPrev, btnNext,
-            btnSwitchDir, btnReload, btnBack,
+            btnSwitchDir, btnReload, btnBack, btnSettings,
             findViewById<Button>(R.id.btn_zoom_in),
             findViewById<Button>(R.id.btn_zoom_out)
         )
@@ -110,6 +138,10 @@ class ImageViewerActivity : Activity() {
     private fun resetZoom() {
         currentScale = 1.0f
         ivImage.scaleType = ImageView.ScaleType.MATRIX
+        applyFitCenterMatrix()
+    }
+
+    private fun applyFitCenterMatrix() {
         val drawable = ivImage.drawable ?: return
         val bmpW = drawable.intrinsicWidth.toFloat()
         val bmpH = drawable.intrinsicHeight.toFloat()
@@ -190,13 +222,24 @@ class ImageViewerActivity : Activity() {
         return false
     }
 
-    // ==================== 初始化 ====================
+    // ==================== 初始化（记忆上次目录） ====================
 
     private fun waitForDbAndScan() {
         while (!dbHelper.isMemoryReady) {
             Thread.sleep(200)
         }
         runOnUiThread {
+            // 读取上次保存的目录
+            val lastDir = prefs.getString(KEY_LAST_DIR, "")
+            if (!lastDir.isNullOrEmpty()) {
+                val dir = File(lastDir)
+                if (dir.exists() && dir.isDirectory) {
+                    currentDirectoryPath = lastDir
+                    scanCurrentDirectory()
+                    return@runOnUiThread
+                }
+            }
+            // 没有有效的上次目录，弹出选择器
             switchDirectory()
         }
     }
@@ -215,6 +258,8 @@ class ImageViewerActivity : Activity() {
             val selectedPath = data?.getStringExtra(DirectoryPickerActivity.EXTRA_SELECTED_PATH)
             if (selectedPath != null) {
                 currentDirectoryPath = selectedPath
+                // 保存为上次目录
+                prefs.edit().putString(KEY_LAST_DIR, selectedPath).apply()
                 dirCache.clear()
                 scanCurrentDirectory()
             } else {
@@ -329,9 +374,7 @@ class ImageViewerActivity : Activity() {
         }
     }
 
-    // ==================== 图片加载（修复抖动） ====================
-
-    // ==================== 图片加载（修复抖动） ====================
+    // ==================== 图片加载 ====================
 
     private fun loadCurrentImage() {
         if (imageFiles.isEmpty()) return
@@ -341,25 +384,19 @@ class ImageViewerActivity : Activity() {
             return
         }
 
-        // 解码图片
         val bitmap = BitmapFactory.decodeFile(file.absolutePath)
         if (bitmap == null) {
             Toast.makeText(this, "无法加载图片", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 直接设置新图片，不清除旧图（避免空白闪烁）
         ivImage.setImageBitmap(bitmap)
-
-        // 重置缩放状态
         currentScale = 1.0f
         ivImage.scaleType = ImageView.ScaleType.MATRIX
 
-        // 立即尝试应用 fitCenter 矩阵（如果 ImageView 已有尺寸）
         if (ivImage.width > 0 && ivImage.height > 0) {
             applyFitCenterMatrix()
         } else {
-            // 等待布局完成后应用
             ivImage.viewTreeObserver.addOnGlobalLayoutListener(object :
                 android.view.ViewTreeObserver.OnGlobalLayoutListener {
                 override fun onGlobalLayout() {
@@ -369,7 +406,8 @@ class ImageViewerActivity : Activity() {
             })
         }
 
-        // 分数缓存（与之前相同）
+        applyImageFilter()
+
         val filePath = file.absolutePath
         if (!scoreCache.containsKey(filePath)) {
             val dbScore = dbHelper.getImageScore(filePath)
@@ -377,24 +415,107 @@ class ImageViewerActivity : Activity() {
         }
     }
 
-    /**
-     * 将图片以 fitCenter 方式居中显示（不缩放，即原始大小适应视图）
-     */
-    private fun applyFitCenterMatrix() {
-        val drawable = ivImage.drawable ?: return
-        val bmpW = drawable.intrinsicWidth.toFloat()
-        val bmpH = drawable.intrinsicHeight.toFloat()
-        val viewW = ivImage.width.toFloat()
-        val viewH = ivImage.height.toFloat()
-        if (bmpW <= 0 || bmpH <= 0 || viewW <= 0 || viewH <= 0) return
+    // ==================== 图像滤镜设置 ====================
 
-        val scale = minOf(viewW / bmpW, viewH / bmpH)
-        val offsetX = (viewW - bmpW * scale) / 2f
-        val offsetY = (viewH - bmpH * scale) / 2f
-        val m = Matrix()
-        m.setScale(scale, scale)
-        m.postTranslate(offsetX, offsetY)
-        ivImage.imageMatrix = m
+    private fun showSettingsDialog() {
+        val dialog = Dialog(this)
+
+        // 1) 窗口背景透明（你已经有了）
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        // 2) 去掉「背后变暗的蒙版」
+        dialog.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+
+        dialog.setContentView(R.layout.dialog_image_settings)
+
+        // ===== 下面是你原来的初始化代码（别删） =====
+        val etBrightness = dialog.findViewById<EditText>(R.id.et_brightness)
+        val etContrast = dialog.findViewById<EditText>(R.id.et_contrast)
+        val etSaturation = dialog.findViewById<EditText>(R.id.et_saturation)
+        val btnReset = dialog.findViewById<Button>(R.id.btn_reset)
+        val btnOk = dialog.findViewById<Button>(R.id.btn_ok)
+        val btnCancel = dialog.findViewById<Button>(R.id.btn_cancel)
+
+        etBrightness.setText(brightness.toString())
+        etContrast.setText(contrast.toString())
+        etSaturation.setText(saturation.toString())
+
+        etBrightness.setHintTextColor(Color.GRAY)
+        etContrast.setHintTextColor(Color.GRAY)
+        etSaturation.setHintTextColor(Color.GRAY)
+
+        for (btn in listOf(btnReset, btnOk, btnCancel)) {
+            btn.setTextColor(Color.BLACK)
+            btn.elevation = 0f
+            btn.stateListAnimator = null
+            // 按钮统一白底（下面也在布局里再保险设一遍）
+            btn.setBackgroundColor(Color.WHITE)
+        }
+
+        btnReset.setOnClickListener {
+            etBrightness.setText("0")
+            etContrast.setText("1.0")
+            etSaturation.setText("1.0")
+        }
+
+        btnOk.setOnClickListener {
+            try {
+                val nb = etBrightness.text.toString().toFloatOrNull() ?: brightness
+                val nc = etContrast.text.toString().toFloatOrNull() ?: contrast
+                val ns = etSaturation.text.toString().toFloatOrNull() ?: saturation
+
+                if (nb < -255f || nb > 255f) {
+                    Toast.makeText(this, "清晰度范围：-255~255", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (nc < 0.1f || nc > 3.0f) {
+                    Toast.makeText(this, "锐化范围：0.1~3.0", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (ns < 0f || ns > 2.0f) {
+                    Toast.makeText(this, "对比度范围：0.0~2.0", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                brightness = nb
+                contrast = nc
+                saturation = ns
+                filterPrefs.edit().apply {
+                    putFloat(KEY_BRIGHTNESS, brightness)
+                    putFloat(KEY_CONTRAST, contrast)
+                    putFloat(KEY_SATURATION, saturation)
+                    apply()
+                }
+
+
+
+
+
+
+                applyImageFilter()
+                dialog.dismiss()
+            } catch (e: Exception) {
+                Toast.makeText(this, "输入无效，请检查", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnCancel.setOnClickListener { dialog.dismiss() }
+        dialog.show()
+    }
+
+    private fun applyImageFilter() {
+        val cm = ColorMatrix()
+        cm.setSaturation(saturation)
+        val contrastMatrix = ColorMatrix(
+            floatArrayOf(
+                contrast, 0f, 0f, 0f, brightness,
+                0f, contrast, 0f, 0f, brightness,
+                0f, 0f, contrast, 0f, brightness,
+                0f, 0f, 0f, 1f, 0f
+            )
+        )
+        cm.postConcat(contrastMatrix)
+        ivImage.colorFilter = ColorMatrixColorFilter(cm)
         ivImage.invalidate()
     }
 

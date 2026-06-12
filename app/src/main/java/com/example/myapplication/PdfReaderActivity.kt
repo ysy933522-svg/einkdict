@@ -129,6 +129,13 @@ class PdfReaderActivity : AppCompatActivity() {
             finish()
         }
 
+        val btnImageViewer = findViewById<Button>(R.id.btn_image_viewer)
+        btnImageViewer.setOnClickListener {
+            val intent = Intent(this, ImageViewerActivity::class.java)
+            startActivity(intent)
+        }
+
+
         // 优先处理从“最近打开”传来的 URI
         val pdfUri = intent.getStringExtra("pdf_uri")
         if (pdfUri != null) {
@@ -450,48 +457,28 @@ class PdfReaderActivity : AppCompatActivity() {
         if (index < 0 || index >= totalPages) return
 
         val page = renderer.openPage(index)
-
         val targetWidth = getOptimalRenderWidth()
         val scale = targetWidth.toFloat() / page.width
         val targetHeight = (page.height * scale).toInt()
-
 
         val rawBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
         page.render(rawBitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         page.close()
 
-        // 白色背景处理（解决透明区域变黑的问题）
+        // 白色背景处理
         val whiteBitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(whiteBitmap)
         canvas.drawColor(Color.WHITE)
         canvas.drawBitmap(rawBitmap, 0f, 0f, null)
         rawBitmap.recycle()
 
-        // ... 渲染代码 ...
         val effectiveSettings = resolveEffectiveSettings()
-        // 渲染模式
-        val renderMode = if (effectiveSettings.usePrintMode)
-            PdfRenderer.Page.RENDER_MODE_FOR_PRINT
-        else
-            PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
-        page.render(rawBitmap, null, null, renderMode)
-
-
-
-
-
-        // 应用对比度/亮度/锐化（使用 effectiveSettings 中的值）
         val processedBitmap = processBitmap(whiteBitmap, effectiveSettings)
         whiteBitmap.recycle()
 
-        // 直接使用 whiteBitmap，不进行任何对比度增强
         preview.setImageBitmap(processedBitmap)
+        setCurrentBitmap(processedBitmap)
 
-        // 安全回收旧 Bitmap
-        currentBitmap?.recycle()
-        currentBitmap = whiteBitmap
-
-        // 重置缩放状态
         displayScale = 1.0f
         preview.scaleType = ImageView.ScaleType.FIT_CENTER
         preview.imageMatrix = null
@@ -713,11 +700,9 @@ class PdfReaderActivity : AppCompatActivity() {
      * 根据传入的 DisplaySettings 对 Bitmap 进行亮度、对比度、锐化处理
      */
     private fun processBitmap(bitmap: Bitmap, settings: GlobalSettings): Bitmap {
-        var result = bitmap.copy(Bitmap.Config.ARGB_8888, true)
+        val result = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(result)
         val paint = Paint()
-
-        // 对比度 + 亮度
         if (settings.contrast != 1.0f || settings.brightness != 0) {
             val cm = ColorMatrix()
             val scale = settings.contrast
@@ -729,11 +714,8 @@ class PdfReaderActivity : AppCompatActivity() {
                 0f, 0f, 0f, 1f, 0f
             ))
             paint.colorFilter = ColorMatrixColorFilter(cm)
-            canvas.drawBitmap(result, 0f, 0f, paint)
         }
-
-        // 锐化（略，可后续实现）
-
+        canvas.drawBitmap(bitmap, 0f, 0f, paint)
         return result
     }
 
@@ -811,16 +793,44 @@ class PdfReaderActivity : AppCompatActivity() {
             ToastUtil.show(this, "请用手指在屏幕上框选区域")
         }
     }
+    private var safeBitmap: Bitmap? = null
+
+
+
+
+
+    private fun setCurrentBitmap(newBmp: Bitmap?) {
+        if (newBmp == null || newBmp.isRecycled) {
+            safeBitmap?.recycle()
+            safeBitmap = null
+            currentBitmap = null
+            return
+        }
+        safeBitmap?.recycle()
+        safeBitmap = newBmp.config?.let { newBmp.copy(it, false) }
+        currentBitmap = safeBitmap
+    }
+
+
+
 
     private fun doCrop() {
         val screenRect = overlay.getSelectionRect() ?: return
-        val bmp = currentBitmap ?: return
+        val bmp = safeBitmap ?: return  // 改为 safeBitmap
+
+        // ★ 关键修复：检查源 Bitmap 是否已被回收
+        if (bmp.isRecycled) {
+            ToastUtil.show(this, "图片已被释放，请重新加载")
+            return
+        }
 
         // 计算当前矩阵的逆矩阵，将屏幕坐标转换为 Bitmap 坐标
         val inverseMatrix = Matrix()
         preview.imageMatrix.invert(inverseMatrix)
-        val points = floatArrayOf(screenRect.left.toFloat(), screenRect.top.toFloat(),
-            screenRect.right.toFloat(), screenRect.bottom.toFloat())
+        val points = floatArrayOf(
+            screenRect.left.toFloat(), screenRect.top.toFloat(),
+            screenRect.right.toFloat(), screenRect.bottom.toFloat()
+        )
         inverseMatrix.mapPoints(points)
 
         val bmpX0 = points[0].toInt().coerceIn(0, bmp.width)
@@ -835,6 +845,7 @@ class PdfReaderActivity : AppCompatActivity() {
             return
         }
 
+        // 创建裁剪图（此时 bmp 一定是有效的）
         val cropped = Bitmap.createBitmap(bmp, bmpX0, bmpY0, cropW, cropH)
 
         Thread {
@@ -844,19 +855,18 @@ class PdfReaderActivity : AppCompatActivity() {
                     outDir.mkdirs()
                 }
 
-                outDir.mkdirs()
                 val outFile = File(outDir, "crop_${System.currentTimeMillis()}.png")
                 FileOutputStream(outFile).use { fos ->
                     cropped.compress(Bitmap.CompressFormat.PNG, 100, fos)
                 }
-                cropped.recycle()
+                cropped.recycle()  // 释放裁剪图，不影响源图
                 runOnUiThread {
                     ToastUtil.show(this, "截图已保存: ${outFile.name}")
                     overlay.clear()
                 }
             } catch (e: Exception) {
                 runOnUiThread {
-                ToastUtil.show(this, "截图失败: ${e.message}")
+                    ToastUtil.show(this, "截图失败: ${e.message}")
                 }
             }
         }.start()
