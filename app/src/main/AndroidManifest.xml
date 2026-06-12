@@ -50,6 +50,17 @@
         <activity android:name=".NoteEditorActivity" />
         <activity android:name=".NoteHistoryActivity" />
 
+
+        <activity android:name=".PdfReaderActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
+            android:configChanges="orientation|screenSize" />
+
+        <activity android:name=".FilePickerActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
+        <activity android:name=".RecentFilesActivity"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
     </application>
 
 </manifest>

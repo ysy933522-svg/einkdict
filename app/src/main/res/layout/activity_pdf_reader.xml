@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    android:fitsSystemWindows="false">
+
+    <!-- PDF 预览层 -->
+    <ImageView
+        android:id="@+id/preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter" />
+
+    <!-- 框选覆盖层 -->
+    <com.example.myapplication.SelectionOverlay
+        android:id="@+id/overlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 底部操作栏（常显示） -->
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:padding="4dp"
+        android:gravity="center_vertical"
+        android:background="#FFFFFF">
+
+        <!-- 页码显示（左下角） -->
+        <TextView
+            android:id="@+id/tvPageInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1 / 1"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:padding="4dp"
+            android:layout_marginEnd="8dp" />
+
+        <!-- 按钮组（靠右） -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="end"
+
+            >
+
+            <Button
+                android:id="@+id/btnPrev"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="上一页"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                android:backgroundTint="@android:color/transparent"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="1dp"/>
+
+            <Button
+                android:id="@+id/btnZoomOut"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="缩小"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                android:backgroundTint="@android:color/transparent"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="1dp"/>
+
+            <Button
+                android:id="@+id/btnZoomIn"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="放大"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                android:backgroundTint="@android:color/transparent"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="1dp"/>
+
+            <Button
+                android:id="@+id/btnCrop"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="截图"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                android:backgroundTint="@android:color/transparent"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="1dp"/>
+
+            <Button
+                android:id="@+id/btnNext"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="下一页"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                android:backgroundTint="@android:color/transparent"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="1dp"/>
+
+            <!-- 返回按钮 -->
+            <Button
+                android:id="@+id/btnBack"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="返回"
+                android:textColor="#000000"
+                android:textSize="20sp"
+                android:backgroundTint="@android:color/transparent"
+                android:stateListAnimator="@null"
+                android:layout_marginStart="1dp"/>
+        </LinearLayout>
+    </LinearLayout>
+</RelativeLayout>

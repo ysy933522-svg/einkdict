@@ -91,6 +91,32 @@
                 android:paddingEnd="6dp" />
 
 
+            <!-- 新增：缩小按钮 -->
+            <Button
+                android:id="@+id/btn_zoom_out"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="缩小"
+                android:textSize="18sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
+            <!-- 新增：放大按钮 -->
+            <Button
+                android:id="@+id/btn_zoom_in"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:text="放大"
+                android:textSize="18sp"
+                android:textColor="#000000"
+                android:background="@null"
+                android:stateListAnimator="@null"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+
             <!-- 返回按钮（新增，放在最左侧） -->
             <Button
                 android:id="@+id/btn_back"
@@ -103,6 +129,7 @@
                 android:stateListAnimator="@null"
                 android:paddingStart="6dp"
                 android:paddingEnd="6dp" />
+
         </LinearLayout>
 
         <!-- 中间数字按钮区域 -->

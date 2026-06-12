@@ -2,7 +2,9 @@ package com.example.myapplication
 
 import android.app.Activity
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.os.Bundle
+import android.view.MotionEvent
 import android.widget.*
 import java.io.File
 import java.security.MessageDigest
@@ -10,6 +12,15 @@ import java.util.*
 import kotlin.collections.ArrayList
 
 class ImageViewerActivity : Activity() {
+
+
+    private var currentScale = 1.0f
+    private val maxScale = 4.0f
+    private val minScale = 0.5f
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var isDragging = false
+    private val touchSlop = 5
 
     companion object {
         // 静态缓存：目录路径 -> (文件列表, 目录最后修改时间)
@@ -75,7 +86,111 @@ class ImageViewerActivity : Activity() {
         btnSwitchDir.setOnClickListener { switchDirectory() }
         btnReload.setOnClickListener { reloadConfig() }
         btnBack.setOnClickListener { finish() }
+
+        // 放大缩小按钮
+        findViewById<Button>(R.id.btn_zoom_in).setOnClickListener { zoomIn() }
+        findViewById<Button>(R.id.btn_zoom_out).setOnClickListener { zoomOut() }
+
+        // 设置 ImageView 可点击，并添加触摸监听（用于拖动）
+        ivImage.isClickable = true
+        ivImage.setOnTouchListener { _, event -> handleTouch(event) }
+
+
+
     }
+
+
+    /** 重置缩放为 fitCenter */
+    private fun resetZoom() {
+        currentScale = 1.0f
+        ivImage.scaleType = ImageView.ScaleType.MATRIX
+        val drawable = ivImage.drawable ?: return
+        val bmpW = drawable.intrinsicWidth.toFloat()
+        val bmpH = drawable.intrinsicHeight.toFloat()
+        val viewW = ivImage.width.toFloat()
+        val viewH = ivImage.height.toFloat()
+        if (bmpW <= 0 || bmpH <= 0 || viewW <= 0 || viewH <= 0) return
+        val scale = minOf(viewW / bmpW, viewH / bmpH)
+        val offsetX = (viewW - bmpW * scale) / 2f
+        val offsetY = (viewH - bmpH * scale) / 2f
+        val m = Matrix()
+        m.setScale(scale, scale)
+        m.postTranslate(offsetX, offsetY)
+        ivImage.imageMatrix = m
+        ivImage.invalidate()
+    }
+
+    /** 应用当前缩放倍数（以视图中心为锚点） */
+    private fun applyZoom() {
+        val drawable = ivImage.drawable ?: return
+        val bmpW = drawable.intrinsicWidth.toFloat()
+        val bmpH = drawable.intrinsicHeight.toFloat()
+        val viewW = ivImage.width.toFloat()
+        val viewH = ivImage.height.toFloat()
+        if (bmpW <= 0 || bmpH <= 0 || viewW <= 0 || viewH <= 0) return
+
+        // 先计算 fitCenter 的基础矩阵
+        val initScale = minOf(viewW / bmpW, viewH / bmpH)
+        val initOffsetX = (viewW - bmpW * initScale) / 2f
+        val initOffsetY = (viewH - bmpH * initScale) / 2f
+        val m = Matrix()
+        m.setScale(initScale, initScale)
+        m.postTranslate(initOffsetX, initOffsetY)
+        // 在此基础上应用用户缩放（以视图中心为锚点）
+        val cx = viewW / 2f
+        val cy = viewH / 2f
+        m.postScale(currentScale, currentScale, cx, cy)
+        ivImage.imageMatrix = m
+        ivImage.invalidate()
+    }
+
+    /** 放大 */
+    private fun zoomIn() {
+        currentScale *= 1.25f
+        if (currentScale > maxScale) currentScale = maxScale
+        applyZoom()
+    }
+
+    /** 缩小 */
+    private fun zoomOut() {
+        currentScale /= 1.25f
+        if (currentScale < minScale) currentScale = minScale
+        applyZoom()
+    }
+
+    /** 处理触摸事件（单指拖动平移） */
+    private fun handleTouch(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                lastTouchX = event.x
+                lastTouchY = event.y
+                isDragging = false
+                return true
+            }
+            MotionEvent.ACTION_MOVE -> {
+                // 只有放大后才允许拖动
+                if (currentScale <= 1.0f) return false
+                val dx = event.x - lastTouchX
+                val dy = event.y - lastTouchY
+                if (Math.abs(dx) > touchSlop || Math.abs(dy) > touchSlop) {
+                    isDragging = true
+                    val m = Matrix(ivImage.imageMatrix)
+                    m.postTranslate(dx, dy)
+                    ivImage.imageMatrix = m
+                    ivImage.invalidate()
+                }
+                lastTouchX = event.x
+                lastTouchY = event.y
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                isDragging = false
+                return true
+            }
+        }
+        return false
+    }
+
 
     // ---------- 初始化 ----------
 
@@ -242,6 +357,9 @@ class ImageViewerActivity : Activity() {
             val dbScore = dbHelper.getImageScore(filePath)
             scoreCache[filePath] = dbScore ?: Pair(0, 0)
         }
+
+        // 延迟重置缩放（确保布局已测量）
+        ivImage.post { resetZoom() }
     }
 
     // ---------- 操作 ----------

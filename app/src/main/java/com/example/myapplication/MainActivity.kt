@@ -136,6 +136,9 @@ class MainActivity : Activity() {
         btnPrev.background = null
         btnNext.background = null
 
+        findViewById<Button>(R.id.btnPdfReader).setOnClickListener {
+            startActivity(Intent(this, PdfReaderActivity::class.java))
+        }
 
         // 强制全屏：隐藏状态栏和导航栏
         window.setDecorFitsSystemWindows(false)

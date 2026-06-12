@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    android:fitsSystemWindows="false">
+
+    <!-- 标题栏 -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="选择PDF文件"
+        android:textSize="16sp"
+        android:textColor="#000000"
+        android:background="#FFFFFF"
+        android:singleLine="true"
+        android:ellipsize="start" />
+
+    <!-- 文件列表 -->
+    <ListView
+        android:id="@+id/listView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/tvTitle"
+        android:layout_above="@id/bottomBar"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:scrollbars="none" />
+
+    <!-- 底部栏 -->
+    <LinearLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="6dp"
+        android:background="#FFFFFF">
+
+        <!-- 页码显示（左下角） -->
+        <TextView
+            android:id="@+id/tvPageInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1 / 1"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:padding="4dp" />
+
+        <!-- 占位，将按钮推到右边 -->
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <!-- 按钮组（紧凑靠右） -->
+        <Button
+            android:id="@+id/btnGoUp"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="上级"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:backgroundTint="@android:color/transparent"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:shadowColor="@android:color/transparent"
+            android:includeFontPadding="false"
+            android:layout_marginStart="0dp" />
+        <Button
+            android:id="@+id/btnRecent"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="最近"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:backgroundTint="@android:color/transparent"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:shadowColor="@android:color/transparent"
+            android:includeFontPadding="false"
+            android:layout_marginStart="0dp" />
+
+        <Button
+            android:id="@+id/btnPrevPage"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="上一页"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:backgroundTint="@android:color/transparent"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:shadowColor="@android:color/transparent"
+            android:includeFontPadding="false"
+            android:layout_marginStart="0dp" />
+
+        <Button
+            android:id="@+id/btnNextPage"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="下一页"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:backgroundTint="@android:color/transparent"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:shadowColor="@android:color/transparent"
+            android:includeFontPadding="false"
+            android:layout_marginStart="0dp" />
+
+        <Button
+            android:id="@+id/btnExit"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="返回"
+            android:textColor="#000000"
+            android:textSize="20sp"
+            android:backgroundTint="@android:color/transparent"
+            android:stateListAnimator="@null"
+            android:elevation="0dp"
+            android:shadowColor="@android:color/transparent"
+            android:includeFontPadding="false"
+            android:layout_marginStart="0dp" />
+    </LinearLayout>
+</RelativeLayout>
