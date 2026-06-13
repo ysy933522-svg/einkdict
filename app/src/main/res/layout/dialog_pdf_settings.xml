@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="#FFFFFF"
+    android:padding="10dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="PDF 图像设置"
+        android:textSize="14sp"
+        android:textColor="#000000"
+        android:gravity="center"
+        android:paddingBottom="6dp" />
+
+    <!-- 对比度 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="对比度"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="40dp" />
+        <SeekBar
+            android:id="@+id/sb_contrast"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="150"
+            android:progress="0"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+        <TextView
+            android:id="@+id/tv_contrast_value"
+            android:layout_width="40dp"
+            android:layout_height="wrap_content"
+            android:text="1.00"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 亮度 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="亮度"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="40dp" />
+        <SeekBar
+            android:id="@+id/sb_brightness"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="100"
+            android:progress="50"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+        <TextView
+            android:id="@+id/tv_brightness_value"
+            android:layout_width="40dp"
+            android:layout_height="wrap_content"
+            android:text="0"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 锐化 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="锐化"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="40dp" />
+        <SeekBar
+            android:id="@+id/sb_sharpness"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="300"
+            android:progress="0"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+        <TextView
+            android:id="@+id/tv_sharpness_value"
+            android:layout_width="40dp"
+            android:layout_height="wrap_content"
+            android:text="0.00"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 打印模式 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="打印模式"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="40dp" />
+        <SeekBar
+            android:id="@+id/sb_print_mode"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="1"
+            android:progress="0"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+        <TextView
+            android:id="@+id/tv_print_mode_value"
+            android:layout_width="40dp"
+            android:layout_height="wrap_content"
+            android:text="关"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 按钮行 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_horizontal"
+        android:paddingTop="6dp">
+        <Button
+            android:id="@+id/btn_local"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="仅本文档"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#FFFFFF"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:paddingVertical="4dp" />
+        <Button
+            android:id="@+id/btn_global"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="设为全局"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#FFFFFF"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:paddingVertical="4dp" />
+        <Button
+            android:id="@+id/btn_cancel"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="取消"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#FFFFFF"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:paddingVertical="4dp" />
+    </LinearLayout>
+</LinearLayout>
