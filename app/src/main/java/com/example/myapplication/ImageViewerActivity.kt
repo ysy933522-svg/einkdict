@@ -7,8 +7,10 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.*
 import android.os.Bundle
+import android.util.Log
 import android.view.MotionEvent
 import android.widget.*
+import org.opencv.android.OpenCVLoader
 import java.io.File
 import java.util.*
 import kotlin.collections.ArrayList
@@ -23,8 +25,11 @@ class ImageViewerActivity : Activity() {
         private const val KEY_BRIGHTNESS = "brightness"
         private const val KEY_CONTRAST = "contrast"
         private const val KEY_SATURATION = "saturation"
+        private const val KEY_CLIP_LIMIT = "clip_limit"
+        private const val KEY_SHARPEN = "sharpen_strength"
     }
-    private lateinit var filterPrefs: SharedPreferences
+
+    private lateinit var prefs: SharedPreferences
     private var currentScale = 1.0f
     private val maxScale = 4.0f
     private val minScale = 0.5f
@@ -56,16 +61,23 @@ class ImageViewerActivity : Activity() {
     private val scoreCache = mutableMapOf<String, Pair<Int, Int>>()
     private var hasUnsavedChanges = false
 
-    // 图像滤镜参数
+    // 图像滤镜参数（从 SharedPreferences 读取）
     private var brightness: Float = 0f
     private var contrast: Float = 1f
     private var saturation: Float = 1f
-
-    private lateinit var prefs: SharedPreferences
+    private var clipLimit: Float = 3.0f
+    private var sharpenStrength: Float = 0.5f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_viewer)
+
+        // 初始化 OpenCV（必须在任何 OpenCV 调用之前）
+        if (!OpenCVLoader.initDebug()) {
+            Log.e("OpenCV", "初始化失败")
+        } else {
+            Log.d("OpenCV", "初始化成功")
+        }
 
         window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
@@ -83,11 +95,9 @@ class ImageViewerActivity : Activity() {
 
         dbHelper = (application as MyApplication).dbHelper
 
-        // 加载保存的参数
+        // 统一使用同一个 SharedPreferences
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        brightness = prefs.getFloat(KEY_BRIGHTNESS, 0f)
-        contrast = prefs.getFloat(KEY_CONTRAST, 1f)
-        saturation = prefs.getFloat(KEY_SATURATION, 1f)
+        loadSettings()
 
         applyEinkStyle()
 
@@ -110,12 +120,14 @@ class ImageViewerActivity : Activity() {
 
         ivImage.isClickable = true
         ivImage.setOnTouchListener { _, event -> handleTouch(event) }
+    }
 
-
-        // "FilterPrefs" 是你给这个偏好设置文件起的名字，可以自定义
-        filterPrefs = getSharedPreferences("FilterPrefs", Context.MODE_PRIVATE)
-
-
+    private fun loadSettings() {
+        brightness = prefs.getFloat(KEY_BRIGHTNESS, 0f)
+        contrast = prefs.getFloat(KEY_CONTRAST, 1f)
+        saturation = prefs.getFloat(KEY_SATURATION, 1f)
+        clipLimit = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f)
+        sharpenStrength = prefs.getFloat(KEY_SHARPEN, 0.5f)
     }
 
     private fun applyEinkStyle() {
@@ -229,7 +241,6 @@ class ImageViewerActivity : Activity() {
             Thread.sleep(200)
         }
         runOnUiThread {
-            // 读取上次保存的目录
             val lastDir = prefs.getString(KEY_LAST_DIR, "")
             if (!lastDir.isNullOrEmpty()) {
                 val dir = File(lastDir)
@@ -239,7 +250,6 @@ class ImageViewerActivity : Activity() {
                     return@runOnUiThread
                 }
             }
-            // 没有有效的上次目录，弹出选择器
             switchDirectory()
         }
     }
@@ -258,7 +268,6 @@ class ImageViewerActivity : Activity() {
             val selectedPath = data?.getStringExtra(DirectoryPickerActivity.EXTRA_SELECTED_PATH)
             if (selectedPath != null) {
                 currentDirectoryPath = selectedPath
-                // 保存为上次目录
                 prefs.edit().putString(KEY_LAST_DIR, selectedPath).apply()
                 dirCache.clear()
                 scanCurrentDirectory()
@@ -374,7 +383,7 @@ class ImageViewerActivity : Activity() {
         }
     }
 
-    // ==================== 图片加载 ====================
+    // ==================== 图片加载（使用 OpenCV 增强） ====================
 
     private fun loadCurrentImage() {
         if (imageFiles.isEmpty()) return
@@ -384,71 +393,82 @@ class ImageViewerActivity : Activity() {
             return
         }
 
-        val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-        if (bitmap == null) {
-            Toast.makeText(this, "无法加载图片", Toast.LENGTH_SHORT).show()
-            return
-        }
+        Thread {
+            val bitmap = BitmapFactory.decodeFile(file.absolutePath)
+            if (bitmap == null) {
+                runOnUiThread { Toast.makeText(this, "无法加载图片", Toast.LENGTH_SHORT).show() }
+                return@Thread
+            }
 
-        ivImage.setImageBitmap(bitmap)
-        currentScale = 1.0f
-        ivImage.scaleType = ImageView.ScaleType.MATRIX
+            // 从 SharedPreferences 读取最新的 CLAHE 和锐化参数
+            val curClip = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f).toDouble()
+            val curSharpen = prefs.getFloat(KEY_SHARPEN, 0.5f).toDouble()
+            val enhanced = DocImageProcessor.enhance(bitmap, curClip, curSharpen)
+            bitmap.recycle()  // 释放原始位图
 
-        if (ivImage.width > 0 && ivImage.height > 0) {
-            applyFitCenterMatrix()
-        } else {
-            ivImage.viewTreeObserver.addOnGlobalLayoutListener(object :
-                android.view.ViewTreeObserver.OnGlobalLayoutListener {
-                override fun onGlobalLayout() {
-                    ivImage.viewTreeObserver.removeOnGlobalLayoutListener(this)
+            runOnUiThread {
+                ivImage.setImageBitmap(enhanced)
+                currentScale = 1.0f
+                ivImage.scaleType = ImageView.ScaleType.MATRIX
+
+                if (ivImage.width > 0 && ivImage.height > 0) {
                     applyFitCenterMatrix()
+                } else {
+                    ivImage.viewTreeObserver.addOnGlobalLayoutListener(object :
+                        android.view.ViewTreeObserver.OnGlobalLayoutListener {
+                        override fun onGlobalLayout() {
+                            ivImage.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                            applyFitCenterMatrix()
+                        }
+                    })
                 }
-            })
-        }
 
-        applyImageFilter()
+                // 注意：不再调用 applyImageFilter()，避免双重处理
+                // 所有图像增强已由 OpenCV 完成
 
-        val filePath = file.absolutePath
-        if (!scoreCache.containsKey(filePath)) {
-            val dbScore = dbHelper.getImageScore(filePath)
-            scoreCache[filePath] = dbScore ?: Pair(0, 0)
-        }
+                val filePath = file.absolutePath
+                if (!scoreCache.containsKey(filePath)) {
+                    val dbScore = dbHelper.getImageScore(filePath)
+                    scoreCache[filePath] = dbScore ?: Pair(0, 0)
+                }
+            }
+        }.start()
     }
 
     // ==================== 图像滤镜设置 ====================
 
     private fun showSettingsDialog() {
         val dialog = Dialog(this)
-
-        // 1) 窗口背景透明（你已经有了）
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-
-        // 2) 去掉「背后变暗的蒙版」
         dialog.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-
         dialog.setContentView(R.layout.dialog_image_settings)
 
-        // ===== 下面是你原来的初始化代码（别删） =====
         val etBrightness = dialog.findViewById<EditText>(R.id.et_brightness)
         val etContrast = dialog.findViewById<EditText>(R.id.et_contrast)
         val etSaturation = dialog.findViewById<EditText>(R.id.et_saturation)
+        val etClip = dialog.findViewById<EditText>(R.id.et_clip_limit)
+        val etSharpen = dialog.findViewById<EditText>(R.id.et_sharpen)
         val btnReset = dialog.findViewById<Button>(R.id.btn_reset)
         val btnOk = dialog.findViewById<Button>(R.id.btn_ok)
         val btnCancel = dialog.findViewById<Button>(R.id.btn_cancel)
 
+        // 填充当前值
         etBrightness.setText(brightness.toString())
         etContrast.setText(contrast.toString())
         etSaturation.setText(saturation.toString())
+        etClip.setText(clipLimit.toString())
+        etSharpen.setText(sharpenStrength.toString())
 
         etBrightness.setHintTextColor(Color.GRAY)
         etContrast.setHintTextColor(Color.GRAY)
         etSaturation.setHintTextColor(Color.GRAY)
+        etClip.setHintTextColor(Color.GRAY)
+        etSharpen.setHintTextColor(Color.GRAY)
 
         for (btn in listOf(btnReset, btnOk, btnCancel)) {
             btn.setTextColor(Color.BLACK)
             btn.elevation = 0f
             btn.stateListAnimator = null
-            // 按钮统一白底（下面也在布局里再保险设一遍）
             btn.setBackgroundColor(Color.WHITE)
         }
 
@@ -456,6 +476,8 @@ class ImageViewerActivity : Activity() {
             etBrightness.setText("0")
             etContrast.setText("1.0")
             etSaturation.setText("1.0")
+            etClip.setText("3.0")
+            etSharpen.setText("0.5")
         }
 
         btnOk.setOnClickListener {
@@ -463,36 +485,47 @@ class ImageViewerActivity : Activity() {
                 val nb = etBrightness.text.toString().toFloatOrNull() ?: brightness
                 val nc = etContrast.text.toString().toFloatOrNull() ?: contrast
                 val ns = etSaturation.text.toString().toFloatOrNull() ?: saturation
+                val nClip = etClip.text.toString().toFloatOrNull() ?: clipLimit
+                val nSharpen = etSharpen.text.toString().toFloatOrNull() ?: sharpenStrength
 
                 if (nb < -255f || nb > 255f) {
-                    Toast.makeText(this, "清晰度范围：-255~255", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "亮度范围：-255~255", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 if (nc < 0.1f || nc > 3.0f) {
-                    Toast.makeText(this, "锐化范围：0.1~3.0", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "对比度范围：0.1~3.0", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 if (ns < 0f || ns > 2.0f) {
-                    Toast.makeText(this, "对比度范围：0.0~2.0", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "饱和度范围：0.0~2.0", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (nClip < 2.0f || nClip > 5.0f) {
+                    Toast.makeText(this, "CLAHE范围：2.0~5.0", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                if (nSharpen < 0f || nSharpen > 1.0f) {
+                    Toast.makeText(this, "锐化范围：0.0~1.0", Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
 
                 brightness = nb
                 contrast = nc
                 saturation = ns
-                filterPrefs.edit().apply {
+                clipLimit = nClip
+                sharpenStrength = nSharpen
+
+                prefs.edit().apply {
                     putFloat(KEY_BRIGHTNESS, brightness)
                     putFloat(KEY_CONTRAST, contrast)
                     putFloat(KEY_SATURATION, saturation)
+                    putFloat(KEY_CLIP_LIMIT, clipLimit)
+                    putFloat(KEY_SHARPEN, sharpenStrength)
                     apply()
                 }
 
-
-
-
-
-
-                applyImageFilter()
+                // 重新加载当前页以应用新设置
+                loadCurrentImage()
                 dialog.dismiss()
             } catch (e: Exception) {
                 Toast.makeText(this, "输入无效，请检查", Toast.LENGTH_SHORT).show()
@@ -501,22 +534,6 @@ class ImageViewerActivity : Activity() {
 
         btnCancel.setOnClickListener { dialog.dismiss() }
         dialog.show()
-    }
-
-    private fun applyImageFilter() {
-        val cm = ColorMatrix()
-        cm.setSaturation(saturation)
-        val contrastMatrix = ColorMatrix(
-            floatArrayOf(
-                contrast, 0f, 0f, 0f, brightness,
-                0f, contrast, 0f, 0f, brightness,
-                0f, 0f, contrast, 0f, brightness,
-                0f, 0f, 0f, 1f, 0f
-            )
-        )
-        cm.postConcat(contrastMatrix)
-        ivImage.colorFilter = ColorMatrixColorFilter(cm)
-        ivImage.invalidate()
     }
 
     // ==================== 操作 ====================
