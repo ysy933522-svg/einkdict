@@ -19,3 +19,4 @@ local.properties
 /.idea/
 /word_dic.sqbpro
 /app/release/
+/opencv/build/

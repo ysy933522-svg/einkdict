@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@android:color/white"
-    android:padding="16dp">
+    android:background="#FFFFFF"
+    android:padding="10dp">
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="图像设置"
-        android:textSize="16sp"
-        android:textColor="@android:color/black"
+        android:textSize="15sp"
+        android:textColor="#000000"
         android:gravity="center"
-        android:paddingBottom="12dp" />
+        android:paddingBottom="6dp" />
 
     <!-- 亮度 -->
     <LinearLayout
@@ -21,158 +21,385 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingVertical="4dp">
+        android:paddingVertical="1dp">
         <TextView
-            android:layout_width="60dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="亮度"
-            android:textSize="14sp"
-            android:textColor="@android:color/black" />
-        <EditText
-            android:id="@+id/et_brightness"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_brightness"
+            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:inputType="numberDecimal|numberSigned"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
-            android:hint="0" />
+            android:max="510"
+            android:progress="255"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/tv_brightness_value"
+            android:layout_width="32dp"
             android:layout_height="wrap_content"
-            android:text="(-255~255)"
+            android:text="0"
             android:textSize="12sp"
-            android:textColor="@android:color/darker_gray"
-            android:paddingLeft="4dp" />
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
     </LinearLayout>
 
-    <!-- 对比度 -->
+    <!-- 对比度 (0.0~10.0) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingVertical="4dp">
+        android:paddingVertical="1dp">
         <TextView
-            android:layout_width="60dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="对比度"
-            android:textSize="14sp"
-            android:textColor="@android:color/black" />
-        <EditText
-            android:id="@+id/et_contrast"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_contrast"
+            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:inputType="numberDecimal"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
-            android:hint="1.0" />
+            android:max="1000"
+            android:progress="100"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/tv_contrast_value"
+            android:layout_width="32dp"
             android:layout_height="wrap_content"
-            android:text="(0.1~3.0)"
+            android:text="1.0"
             android:textSize="12sp"
-            android:textColor="@android:color/darker_gray"
-            android:paddingLeft="4dp" />
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
     </LinearLayout>
 
-    <!-- 饱和度 -->
+    <!-- 饱和度 (0.0~5.0) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingVertical="4dp">
+        android:paddingVertical="1dp">
         <TextView
-            android:layout_width="60dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="饱和度"
-            android:textSize="14sp"
-            android:textColor="@android:color/black" />
-        <EditText
-            android:id="@+id/et_saturation"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_saturation"
+            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:inputType="numberDecimal"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
-            android:hint="1.0" />
+            android:max="500"
+            android:progress="100"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/tv_saturation_value"
+            android:layout_width="32dp"
             android:layout_height="wrap_content"
-            android:text="(0.0~2.0)"
+            android:text="1.0"
             android:textSize="12sp"
-            android:textColor="@android:color/darker_gray"
-            android:paddingLeft="4dp" />
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
     </LinearLayout>
 
-    <!-- CLAHE 强度 -->
+    <!-- CLAHE 强度 (0.0~20.0) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingVertical="4dp">
+        android:paddingVertical="1dp">
         <TextView
-            android:layout_width="60dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="CLAHE"
-            android:textSize="14sp"
-            android:textColor="@android:color/black" />
-        <EditText
-            android:id="@+id/et_clip_limit"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_clip_limit"
+            style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:inputType="numberDecimal"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
-            android:hint="3.0" />
+            android:max="2000"
+            android:progress="300"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
         <TextView
-            android:layout_width="wrap_content"
+            android:id="@+id/tv_clip_limit_value"
+            android:layout_width="32dp"
             android:layout_height="wrap_content"
-            android:text="(2.0~5.0)"
+            android:text="3.0"
             android:textSize="12sp"
-            android:textColor="@android:color/darker_gray"
-            android:paddingLeft="4dp" />
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
     </LinearLayout>
 
-    <!-- 锐化强度 -->
+    <!-- 锐化强度 (0.0~5.0) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingVertical="4dp">
-        <TextView
-            android:layout_width="60dp"
-            android:layout_height="wrap_content"
-            android:text="锐化"
-            android:textSize="14sp"
-            android:textColor="@android:color/black" />
-        <EditText
-            android:id="@+id/et_sharpen"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:inputType="numberDecimal"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
-            android:hint="0.5" />
+        android:paddingVertical="1dp">
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="(0.0~1.0)"
+            android:text="锐化"
             android:textSize="12sp"
-            android:textColor="@android:color/darker_gray"
-            android:paddingLeft="4dp" />
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_sharpen"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="500"
+            android:progress="50"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
+        <TextView
+            android:id="@+id/tv_sharpen_value"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:text="0.5"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 伽马校正 (0.1~5.0) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="伽马"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_gamma"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="490"
+            android:progress="90"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
+        <TextView
+            android:id="@+id/tv_gamma_value"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:text="1.0"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 二值化阈值 (0~255, 0=不二值化) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="二值化"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_threshold"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="255"
+            android:progress="0"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
+        <TextView
+            android:id="@+id/tv_threshold_value"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:text="关"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 降噪强度 (0~50) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="降噪"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_denoise"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="500"
+            android:progress="0"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
+        <TextView
+            android:id="@+id/tv_denoise_value"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:text="0"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
+    </LinearLayout>
+
+    <!-- 色温 (-200~200) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingVertical="1dp">
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="色温"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:singleLine="true"
+            android:minWidth="32dp" />
+        <SeekBar
+            android:id="@+id/sb_temp"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:max="400"
+            android:progress="200"
+            android:splitTrack="false"
+            android:thumbTint="#000000"
+            android:progressTint="#000000"
+            android:progressBackgroundTint="#AAAAAA"
+            android:minHeight="2dp"
+            android:maxHeight="2dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="10dp" />
+        <TextView
+            android:id="@+id/tv_temp_value"
+            android:layout_width="32dp"
+            android:layout_height="wrap_content"
+            android:text="0"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:gravity="end"
+            android:singleLine="true"
+            android:paddingStart="4dp" />
     </LinearLayout>
 
     <!-- 按钮行 -->
@@ -181,39 +408,54 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_horizontal"
-        android:paddingTop="12dp">
+        android:paddingTop="6dp">
         <Button
             android:id="@+id/btn_reset"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="还原"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#FFFFFF"
             android:elevation="0dp"
-            android:stateListAnimator="@null" />
+            android:stateListAnimator="@null"
+            android:paddingVertical="4dp" />
+        <Button
+            android:id="@+id/btn_apply"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="应用"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#FFFFFF"
+            android:elevation="0dp"
+            android:stateListAnimator="@null"
+            android:paddingVertical="4dp" />
         <Button
             android:id="@+id/btn_ok"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="确定"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#FFFFFF"
             android:elevation="0dp"
-            android:stateListAnimator="@null" />
+            android:stateListAnimator="@null"
+            android:paddingVertical="4dp" />
         <Button
             android:id="@+id/btn_cancel"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="取消"
-            android:textSize="14sp"
-            android:textColor="@android:color/black"
-            android:background="@android:color/transparent"
+            android:textSize="12sp"
+            android:textColor="#000000"
+            android:background="#FFFFFF"
             android:elevation="0dp"
-            android:stateListAnimator="@null" />
+            android:stateListAnimator="@null"
+            android:paddingVertical="4dp" />
     </LinearLayout>
 </LinearLayout>

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.*
+import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
@@ -22,13 +23,25 @@ class ImageViewerActivity : Activity() {
         private val dirCache = mutableMapOf<String, Pair<List<File>, Long>>()
         private const val PREFS_NAME = "image_viewer_prefs"
         private const val KEY_LAST_DIR = "last_selected_dir"
+
         private const val KEY_BRIGHTNESS = "brightness"
         private const val KEY_CONTRAST = "contrast"
         private const val KEY_SATURATION = "saturation"
         private const val KEY_CLIP_LIMIT = "clip_limit"
-        private const val KEY_SHARPEN = "sharpen_strength"
+        private const val KEY_SHARPEN = "sharpen"
+        private const val KEY_GAMMA = "gamma"
+        private const val KEY_THRESHOLD = "threshold"
+        private const val KEY_DENOISE = "denoise"
+        private const val KEY_COLOR_TEMP = "color_temp"
     }
+    // 原有参数
 
+
+    // 新增参数
+    private var gamma = 1.0f           // 伽马校正
+    private var threshold = 0          // 二值化阈值（0=不启用）
+    private var denoise = 0f           // 降噪强度
+    private var colorTemp = 0          // 色温偏移
     private lateinit var prefs: SharedPreferences
     private var currentScale = 1.0f
     private val maxScale = 4.0f
@@ -117,6 +130,22 @@ class ImageViewerActivity : Activity() {
 
         findViewById<Button>(R.id.btn_zoom_in).setOnClickListener { zoomIn() }
         findViewById<Button>(R.id.btn_zoom_out).setOnClickListener { zoomOut() }
+
+
+
+        prefs = getSharedPreferences("image_settings", MODE_PRIVATE)
+        brightness = prefs.getFloat(KEY_BRIGHTNESS, 0f)
+        contrast = prefs.getFloat(KEY_CONTRAST, 1f)
+        saturation = prefs.getFloat(KEY_SATURATION, 1f)
+        clipLimit = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f)
+        sharpenStrength = prefs.getFloat(KEY_SHARPEN, 0.5f)
+        gamma = prefs.getFloat(KEY_GAMMA, 1.0f)
+        threshold = prefs.getInt(KEY_THRESHOLD, 0)
+        denoise = prefs.getFloat(KEY_DENOISE, 0f)
+        colorTemp = prefs.getInt(KEY_COLOR_TEMP, 0)
+
+
+
 
         ivImage.isClickable = true
         ivImage.setOnTouchListener { _, event -> handleTouch(event) }
@@ -385,6 +414,8 @@ class ImageViewerActivity : Activity() {
 
     // ==================== 图片加载（使用 OpenCV 增强） ====================
 
+    private var loadImageJob: Thread? = null  // 用于取消上一个加载任务
+
     private fun loadCurrentImage() {
         if (imageFiles.isEmpty()) return
         val file = imageFiles[currentIndex]
@@ -393,24 +424,45 @@ class ImageViewerActivity : Activity() {
             return
         }
 
-        Thread {
+        // 取消上一个仍在运行的加载线程
+        loadImageJob?.interrupt()
+        loadImageJob = Thread {
+            // 检查是否被中断（快速拖动时）
+            if (Thread.interrupted()) return@Thread
+
             val bitmap = BitmapFactory.decodeFile(file.absolutePath)
-            if (bitmap == null) {
+            if (bitmap == null || Thread.interrupted()) {
                 runOnUiThread { Toast.makeText(this, "无法加载图片", Toast.LENGTH_SHORT).show() }
                 return@Thread
             }
 
-            // 从 SharedPreferences 读取最新的 CLAHE 和锐化参数
-            val curClip = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f).toDouble()
-            val curSharpen = prefs.getFloat(KEY_SHARPEN, 0.5f).toDouble()
+            // OpenCV 增强（确保 OpenCV 已加载）
+            val curClip = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f).toFloat()
+            val curSharpen = prefs.getFloat(KEY_SHARPEN, 0.5f).toFloat()
             val enhanced = DocImageProcessor.enhance(bitmap, curClip, curSharpen)
-            bitmap.recycle()  // 释放原始位图
+
+            if (Thread.interrupted()) return@Thread
 
             runOnUiThread {
+                // 保存旧 Bitmap 引用
+                val oldDrawable = ivImage.drawable
+                // 设置新 Bitmap
                 ivImage.setImageBitmap(enhanced)
+                // 回收旧 Bitmap（确保不是同一个对象且未被回收）
+                if (oldDrawable is BitmapDrawable) {
+                    val oldBitmap = oldDrawable.bitmap
+                    if (oldBitmap != null && !oldBitmap.isRecycled && oldBitmap !== enhanced) {
+                        oldBitmap.recycle()
+                    }
+                }
+                // 回收原始解码的 Bitmap
+                if (!bitmap.isRecycled) {
+                    bitmap.recycle()
+                }
+
+                // 缩放等后续处理
                 currentScale = 1.0f
                 ivImage.scaleType = ImageView.ScaleType.MATRIX
-
                 if (ivImage.width > 0 && ivImage.height > 0) {
                     applyFitCenterMatrix()
                 } else {
@@ -423,16 +475,14 @@ class ImageViewerActivity : Activity() {
                     })
                 }
 
-                // 注意：不再调用 applyImageFilter()，避免双重处理
-                // 所有图像增强已由 OpenCV 完成
-
+                // 更新分数缓存
                 val filePath = file.absolutePath
                 if (!scoreCache.containsKey(filePath)) {
                     val dbScore = dbHelper.getImageScore(filePath)
                     scoreCache[filePath] = dbScore ?: Pair(0, 0)
                 }
             }
-        }.start()
+        }.also { it.start() }
     }
 
     // ==================== 图像滤镜设置 ====================
@@ -443,97 +493,201 @@ class ImageViewerActivity : Activity() {
         dialog.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         dialog.setContentView(R.layout.dialog_image_settings)
 
-        val etBrightness = dialog.findViewById<EditText>(R.id.et_brightness)
-        val etContrast = dialog.findViewById<EditText>(R.id.et_contrast)
-        val etSaturation = dialog.findViewById<EditText>(R.id.et_saturation)
-        val etClip = dialog.findViewById<EditText>(R.id.et_clip_limit)
-        val etSharpen = dialog.findViewById<EditText>(R.id.et_sharpen)
+        // 设置对话框宽度为屏幕宽度的 95%
+        val displayMetrics = resources.displayMetrics
+        val width = (displayMetrics.widthPixels * 0.95).toInt()
+        dialog.window?.setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
+
+        // 获取所有控件
+        val sbBrightness = dialog.findViewById<SeekBar>(R.id.sb_brightness)
+        val sbContrast = dialog.findViewById<SeekBar>(R.id.sb_contrast)
+        val sbSaturation = dialog.findViewById<SeekBar>(R.id.sb_saturation)
+        val sbClipLimit = dialog.findViewById<SeekBar>(R.id.sb_clip_limit)
+        val sbSharpen = dialog.findViewById<SeekBar>(R.id.sb_sharpen)
+        val sbGamma = dialog.findViewById<SeekBar>(R.id.sb_gamma)
+        val sbThreshold = dialog.findViewById<SeekBar>(R.id.sb_threshold)
+        val sbDenoise = dialog.findViewById<SeekBar>(R.id.sb_denoise)
+        val sbTemp = dialog.findViewById<SeekBar>(R.id.sb_temp)
+
+        val tvBrightnessValue = dialog.findViewById<TextView>(R.id.tv_brightness_value)
+        val tvContrastValue = dialog.findViewById<TextView>(R.id.tv_contrast_value)
+        val tvSaturationValue = dialog.findViewById<TextView>(R.id.tv_saturation_value)
+        val tvClipLimitValue = dialog.findViewById<TextView>(R.id.tv_clip_limit_value)
+        val tvSharpenValue = dialog.findViewById<TextView>(R.id.tv_sharpen_value)
+        val tvGammaValue = dialog.findViewById<TextView>(R.id.tv_gamma_value)
+        val tvThresholdValue = dialog.findViewById<TextView>(R.id.tv_threshold_value)
+        val tvDenoiseValue = dialog.findViewById<TextView>(R.id.tv_denoise_value)
+        val tvTempValue = dialog.findViewById<TextView>(R.id.tv_temp_value)
+
         val btnReset = dialog.findViewById<Button>(R.id.btn_reset)
+        val btnApply = dialog.findViewById<Button>(R.id.btn_apply)
         val btnOk = dialog.findViewById<Button>(R.id.btn_ok)
         val btnCancel = dialog.findViewById<Button>(R.id.btn_cancel)
 
-        // 填充当前值
-        etBrightness.setText(brightness.toString())
-        etContrast.setText(contrast.toString())
-        etSaturation.setText(saturation.toString())
-        etClip.setText(clipLimit.toString())
-        etSharpen.setText(sharpenStrength.toString())
+        // 设置当前值
+        sbBrightness.progress = (brightness + 255f).toInt().coerceIn(0, 510)
+        tvBrightnessValue.text = brightness.toInt().toString()
 
-        etBrightness.setHintTextColor(Color.GRAY)
-        etContrast.setHintTextColor(Color.GRAY)
-        etSaturation.setHintTextColor(Color.GRAY)
-        etClip.setHintTextColor(Color.GRAY)
-        etSharpen.setHintTextColor(Color.GRAY)
+        sbContrast.progress = (contrast * 100f).toInt().coerceIn(0, 1000)
+        tvContrastValue.text = String.format("%.1f", contrast)
 
-        for (btn in listOf(btnReset, btnOk, btnCancel)) {
+        sbSaturation.progress = (saturation * 100f).toInt().coerceIn(0, 500)
+        tvSaturationValue.text = String.format("%.1f", saturation)
+
+        sbClipLimit.progress = (clipLimit * 100f).toInt().coerceIn(0, 2000)
+        tvClipLimitValue.text = String.format("%.1f", clipLimit)
+
+        sbSharpen.progress = (sharpenStrength * 100f).toInt().coerceIn(0, 500)
+        tvSharpenValue.text = String.format("%.1f", sharpenStrength)
+
+        // 伽马：progress 0~490 对应 0.1~5.0
+        sbGamma.progress = ((gamma - 0.1f) * 100f).toInt().coerceIn(0, 490)
+        tvGammaValue.text = String.format("%.1f", gamma)
+
+        // 二值化：0=关，1~255=阈值
+        sbThreshold.progress = threshold.coerceIn(0, 255)
+        tvThresholdValue.text = if (threshold == 0) "关" else threshold.toString()
+
+        // 降噪：progress 0~500 对应 0.0~50.0
+        sbDenoise.progress = (denoise * 10f).toInt().coerceIn(0, 500)
+        tvDenoiseValue.text = String.format("%.0f", denoise)
+
+        // 色温：progress 0~400 对应 -200~200
+        sbTemp.progress = (colorTemp + 200).coerceIn(0, 400)
+        tvTempValue.text = colorTemp.toString()
+
+        // 设置监听器（仅更新数值显示）
+        sbBrightness.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvBrightnessValue.text = (p - 255).toString()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbContrast.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvContrastValue.text = String.format("%.1f", p / 100f)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbSaturation.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvSaturationValue.text = String.format("%.1f", p / 100f)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbClipLimit.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvClipLimitValue.text = String.format("%.1f", p / 100f)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbSharpen.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvSharpenValue.text = String.format("%.1f", p / 100f)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbGamma.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                val v = 0.1f + p / 100f
+                tvGammaValue.text = String.format("%.1f", v)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbThreshold.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvThresholdValue.text = if (p == 0) "关" else p.toString()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbDenoise.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvDenoiseValue.text = String.format("%.0f", p / 10f)
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+        sbTemp.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvTempValue.text = (p - 200).toString()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+
+        // 按钮样式
+        for (btn in listOf(btnReset, btnApply, btnOk, btnCancel)) {
             btn.setTextColor(Color.BLACK)
             btn.elevation = 0f
             btn.stateListAnimator = null
             btn.setBackgroundColor(Color.WHITE)
         }
 
+        // 还原按钮
         btnReset.setOnClickListener {
-            etBrightness.setText("0")
-            etContrast.setText("1.0")
-            etSaturation.setText("1.0")
-            etClip.setText("3.0")
-            etSharpen.setText("0.5")
+            sbBrightness.progress = 255
+            sbContrast.progress = 100
+            sbSaturation.progress = 100
+            sbClipLimit.progress = 300
+            sbSharpen.progress = 50
+            sbGamma.progress = 90   // 对应1.0
+            sbThreshold.progress = 0
+            sbDenoise.progress = 0
+            sbTemp.progress = 200   // 对应0
+            // 立即应用默认值
+            brightness = 0f; contrast = 1f; saturation = 1f; clipLimit = 3.0f; sharpenStrength = 0.5f
+            gamma = 1.0f; threshold = 0; denoise = 0f; colorTemp = 0
+            loadCurrentImage()
         }
 
+        // 应用按钮
+        btnApply.setOnClickListener {
+            readValuesAndSave(dialog)
+            loadCurrentImage()
+            Toast.makeText(this, "已应用", Toast.LENGTH_SHORT).show()
+        }
+
+        // 确定按钮
         btnOk.setOnClickListener {
-            try {
-                val nb = etBrightness.text.toString().toFloatOrNull() ?: brightness
-                val nc = etContrast.text.toString().toFloatOrNull() ?: contrast
-                val ns = etSaturation.text.toString().toFloatOrNull() ?: saturation
-                val nClip = etClip.text.toString().toFloatOrNull() ?: clipLimit
-                val nSharpen = etSharpen.text.toString().toFloatOrNull() ?: sharpenStrength
-
-                if (nb < -255f || nb > 255f) {
-                    Toast.makeText(this, "亮度范围：-255~255", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                if (nc < 0.1f || nc > 3.0f) {
-                    Toast.makeText(this, "对比度范围：0.1~3.0", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                if (ns < 0f || ns > 2.0f) {
-                    Toast.makeText(this, "饱和度范围：0.0~2.0", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                if (nClip < 2.0f || nClip > 5.0f) {
-                    Toast.makeText(this, "CLAHE范围：2.0~5.0", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-                if (nSharpen < 0f || nSharpen > 1.0f) {
-                    Toast.makeText(this, "锐化范围：0.0~1.0", Toast.LENGTH_SHORT).show()
-                    return@setOnClickListener
-                }
-
-                brightness = nb
-                contrast = nc
-                saturation = ns
-                clipLimit = nClip
-                sharpenStrength = nSharpen
-
-                prefs.edit().apply {
-                    putFloat(KEY_BRIGHTNESS, brightness)
-                    putFloat(KEY_CONTRAST, contrast)
-                    putFloat(KEY_SATURATION, saturation)
-                    putFloat(KEY_CLIP_LIMIT, clipLimit)
-                    putFloat(KEY_SHARPEN, sharpenStrength)
-                    apply()
-                }
-
-                // 重新加载当前页以应用新设置
-                loadCurrentImage()
-                dialog.dismiss()
-            } catch (e: Exception) {
-                Toast.makeText(this, "输入无效，请检查", Toast.LENGTH_SHORT).show()
-            }
+            readValuesAndSave(dialog)
+            loadCurrentImage()
+            dialog.dismiss()
         }
 
         btnCancel.setOnClickListener { dialog.dismiss() }
         dialog.show()
+    }
+
+    private fun readValuesAndSave(dialog: Dialog) {
+        brightness = (dialog.findViewById<SeekBar>(R.id.sb_brightness).progress - 255).toFloat()
+        contrast = dialog.findViewById<SeekBar>(R.id.sb_contrast).progress / 100f
+        saturation = dialog.findViewById<SeekBar>(R.id.sb_saturation).progress / 100f
+        clipLimit = dialog.findViewById<SeekBar>(R.id.sb_clip_limit).progress / 100f
+        sharpenStrength = dialog.findViewById<SeekBar>(R.id.sb_sharpen).progress / 100f
+        gamma = 0.1f + dialog.findViewById<SeekBar>(R.id.sb_gamma).progress / 100f
+        threshold = dialog.findViewById<SeekBar>(R.id.sb_threshold).progress
+        denoise = dialog.findViewById<SeekBar>(R.id.sb_denoise).progress / 10f
+        colorTemp = dialog.findViewById<SeekBar>(R.id.sb_temp).progress - 200
+
+        prefs.edit().apply {
+            putFloat(KEY_BRIGHTNESS, brightness)
+            putFloat(KEY_CONTRAST, contrast)
+            putFloat(KEY_SATURATION, saturation)
+            putFloat(KEY_CLIP_LIMIT, clipLimit)
+            putFloat(KEY_SHARPEN, sharpenStrength)
+            putFloat(KEY_GAMMA, gamma)
+            putInt(KEY_THRESHOLD, threshold)
+            putFloat(KEY_DENOISE, denoise)
+            putInt(KEY_COLOR_TEMP, colorTemp)
+            apply()
+        }
     }
 
     // ==================== 操作 ====================
