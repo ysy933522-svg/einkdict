@@ -33,11 +33,14 @@ class ImageViewerActivity : Activity() {
         private const val KEY_THRESHOLD = "threshold"
         private const val KEY_DENOISE = "denoise"
         private const val KEY_COLOR_TEMP = "color_temp"
+        private const val KEY_PRINT_CLEAN = "print_clean_strength"  // 新增
     }
     // 原有参数
 
 
     // 新增参数
+    // 新增
+    private var printCleanStrength = 0f
     private var gamma = 1.0f           // 伽马校正
     private var threshold = 0          // 二值化阈值（0=不启用）
     private var denoise = 0f           // 降噪强度
@@ -143,7 +146,7 @@ class ImageViewerActivity : Activity() {
         threshold = prefs.getInt(KEY_THRESHOLD, 0)
         denoise = prefs.getFloat(KEY_DENOISE, 0f)
         colorTemp = prefs.getInt(KEY_COLOR_TEMP, 0)
-
+        printCleanStrength = prefs.getFloat(KEY_PRINT_CLEAN, 0f)  // 新增
 
 
 
@@ -439,7 +442,19 @@ class ImageViewerActivity : Activity() {
             // OpenCV 增强（确保 OpenCV 已加载）
             val curClip = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f).toFloat()
             val curSharpen = prefs.getFloat(KEY_SHARPEN, 0.5f).toFloat()
-            val enhanced = DocImageProcessor.enhance(bitmap, curClip, curSharpen)
+            val enhanced = DocImageProcessor.enhance(
+                bitmap,
+                brightness = brightness,
+                contrast = contrast,
+                saturation = saturation,
+                clipLimit = clipLimit,
+                sharpenStrength = sharpenStrength,
+                gamma = gamma,
+                threshold = threshold,
+                denoise = denoise,
+                colorTemp = colorTemp,
+                printCleanStrength = printCleanStrength   // 传入新参数
+            )
 
             if (Thread.interrupted()) return@Thread
 
@@ -556,6 +571,24 @@ class ImageViewerActivity : Activity() {
         sbTemp.progress = (colorTemp + 200).coerceIn(0, 400)
         tvTempValue.text = colorTemp.toString()
 
+
+        val sbPrintClean = dialog.findViewById<SeekBar>(R.id.sb_print_clean)
+        val tvPrintCleanValue = dialog.findViewById<TextView>(R.id.tv_print_clean_value)
+
+// 设置当前值（0~100 → 0.0~1.0）
+        sbPrintClean.progress = (printCleanStrength * 100f).toInt().coerceIn(0, 100)
+        tvPrintCleanValue.text = String.format("%.0f", printCleanStrength * 100)  // 显示百分比
+
+// 监听器
+        sbPrintClean.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvPrintCleanValue.text = p.toString()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
+
+
         // 设置监听器（仅更新数值显示）
         sbBrightness.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
@@ -644,6 +677,8 @@ class ImageViewerActivity : Activity() {
             // 立即应用默认值
             brightness = 0f; contrast = 1f; saturation = 1f; clipLimit = 3.0f; sharpenStrength = 0.5f
             gamma = 1.0f; threshold = 0; denoise = 0f; colorTemp = 0
+            sbPrintClean.progress = 0
+            printCleanStrength = 0f
             loadCurrentImage()
         }
 
@@ -675,6 +710,8 @@ class ImageViewerActivity : Activity() {
         threshold = dialog.findViewById<SeekBar>(R.id.sb_threshold).progress
         denoise = dialog.findViewById<SeekBar>(R.id.sb_denoise).progress / 10f
         colorTemp = dialog.findViewById<SeekBar>(R.id.sb_temp).progress - 200
+        printCleanStrength = dialog.findViewById<SeekBar>(R.id.sb_print_clean).progress / 100f
+        prefs.edit().putFloat(KEY_PRINT_CLEAN, printCleanStrength).apply()
 
         prefs.edit().apply {
             putFloat(KEY_BRIGHTNESS, brightness)
