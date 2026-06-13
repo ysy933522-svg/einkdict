@@ -1,2 +1,0 @@
-ninja: Entering directory `/home/y/AndroidStudioProjects/MyApplication/opencv/.cxx/Debug/415n2lt4/arm64-v8a'
-ninja: no work to do.
