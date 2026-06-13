@@ -46,7 +46,6 @@ class DirectoryPickerActivity : Activity() {
     private var subDirs: List<File> = emptyList()
     private var currentPage = 0
     private var totalPages = 0
-    private val navigationStack = Stack<Pair<String, Int>>()
     private lateinit var prefs: SharedPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,7 +73,8 @@ class DirectoryPickerActivity : Activity() {
             btn.stateListAnimator = null
         }
 
-        loadDirectory(currentPath)
+        // 首次加载根目录
+        loadDirectory(currentPath, 0)
 
         btnBackParent.setOnClickListener { goBackParent() }
         btnRecent.setOnClickListener { openRecentDirectories() }
@@ -84,7 +84,12 @@ class DirectoryPickerActivity : Activity() {
         btnCancel.setOnClickListener { cancel() }
     }
 
-    private fun loadDirectory(path: String) {
+    /**
+     * 加载指定目录，并跳转到指定页码
+     * @param path 目录路径
+     * @param page 要显示的页码（0-based）
+     */
+    private fun loadDirectory(path: String, page: Int = 0) {
         val dir = File(path)
         if (!dir.exists() || !dir.isDirectory) {
             Toast.makeText(this, "无法访问目录: $path", Toast.LENGTH_SHORT).show()
@@ -98,7 +103,7 @@ class DirectoryPickerActivity : Activity() {
         subDirs = children.sortedBy { it.name.lowercase() }
 
         totalPages = if (subDirs.isEmpty()) 1 else (subDirs.size + PAGE_SIZE - 1) / PAGE_SIZE
-        currentPage = 0
+        currentPage = page.coerceIn(0, totalPages - 1)
         showPage()
     }
 
@@ -127,8 +132,8 @@ class DirectoryPickerActivity : Activity() {
             btn.gravity = Gravity.START
 
             btn.setOnClickListener {
-                navigationStack.push(Pair(currentPath, currentPage))
-                loadDirectory(dir.absolutePath)
+                // 直接进入子目录，不压栈
+                loadDirectory(dir.absolutePath, 0)
             }
 
             layoutDirectoryList.addView(btn)
@@ -144,7 +149,8 @@ class DirectoryPickerActivity : Activity() {
         }
 
         tvPageInfo.text = "${currentPage + 1}/${totalPages}"
-        btnBackParent.isEnabled = navigationStack.isNotEmpty()
+        // 上级按钮始终可用（除非已是根目录，但在 goBackParent 中处理）
+        btnBackParent.isEnabled = true
     }
 
     private fun countImagesInDir(dir: File): Int {
@@ -166,16 +172,17 @@ class DirectoryPickerActivity : Activity() {
         showPage()
     }
 
+    /**
+     * 返回上级目录：始终进入当前目录的父目录，不依赖任何历史记录。
+     */
     private fun goBackParent() {
-        if (navigationStack.isEmpty()) {
+        val dir = File(currentPath)
+        val parentFile = dir.parentFile
+        if (parentFile != null && parentFile.exists()) {
+            loadDirectory(parentFile.absolutePath, 0)
+        } else {
             Toast.makeText(this, "已在最顶层目录", Toast.LENGTH_SHORT).show()
-            return
         }
-        val (parentPath, page) = navigationStack.pop()
-        currentPath = parentPath
-        loadDirectory(parentPath)
-        currentPage = page
-        showPage()
     }
 
     private fun selectCurrent() {
@@ -201,7 +208,6 @@ class DirectoryPickerActivity : Activity() {
         if (requestCode == REQUEST_RECENT && resultCode == Activity.RESULT_OK) {
             val path = data?.getStringExtra(RecentDirectoriesActivity.EXTRA_SELECTED_PATH)
             if (path != null) {
-                // 直接将最近选择的路径作为结果返回给 ImageViewerActivity
                 addToRecent(path)
                 val resultIntent = Intent()
                 resultIntent.putExtra(EXTRA_SELECTED_PATH, path)
