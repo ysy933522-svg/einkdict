@@ -419,7 +419,7 @@ class ImageViewerActivity : Activity() {
 
     private var loadImageJob: Thread? = null  // 用于取消上一个加载任务
 
-    private fun loadCurrentImage() {
+    private fun loadCurrentImage(showToast: Boolean = false) {
         if (imageFiles.isEmpty()) return
         val file = imageFiles[currentIndex]
         if (!file.exists()) {
@@ -440,8 +440,8 @@ class ImageViewerActivity : Activity() {
             }
 
             // OpenCV 增强（确保 OpenCV 已加载）
-            val curClip = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f).toFloat()
-            val curSharpen = prefs.getFloat(KEY_SHARPEN, 0.5f).toFloat()
+            val curClip = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f)
+            val curSharpen = prefs.getFloat(KEY_SHARPEN, 0.5f)
             val enhanced = DocImageProcessor.enhance(
                 bitmap,
                 brightness = brightness,
@@ -463,6 +463,12 @@ class ImageViewerActivity : Activity() {
                 val oldDrawable = ivImage.drawable
                 // 设置新 Bitmap
                 ivImage.setImageBitmap(enhanced)
+
+                // 如果 showToast 为 true，则在图片更新后显示提示
+                if (showToast) {
+                    Toast.makeText(this, "已应用", Toast.LENGTH_SHORT).show()
+                }
+
                 // 回收旧 Bitmap（确保不是同一个对象且未被回收）
                 if (oldDrawable is BitmapDrawable) {
                     val oldBitmap = oldDrawable.bitmap
@@ -512,6 +518,12 @@ class ImageViewerActivity : Activity() {
         val displayMetrics = resources.displayMetrics
         val width = (displayMetrics.widthPixels * 0.95).toInt()
         dialog.window?.setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
+
+        // ★ 让对话框靠上显示，顶住屏幕顶部
+        dialog.window?.setGravity(android.view.Gravity.TOP)          // 对齐到顶部
+        dialog.window?.attributes?.y = 0                              // 垂直偏移量为 0（顶住顶部）
+        dialog.window?.attributes?.x = 0                              // 水平偏移量（可选，0 表示水平居中？实际上 setGravity(TOP) 会让它水平居中，如果想靠左可加 Gravity.START）
+        // 如果想水平也靠左，可以改为：
 
         // 获取所有控件
         val sbBrightness = dialog.findViewById<SeekBar>(R.id.sb_brightness)
@@ -665,34 +677,72 @@ class ImageViewerActivity : Activity() {
 
         // 还原按钮
         btnReset.setOnClickListener {
+            // 重置所有滑块到默认值
             sbBrightness.progress = 255
             sbContrast.progress = 100
             sbSaturation.progress = 100
             sbClipLimit.progress = 300
             sbSharpen.progress = 50
-            sbGamma.progress = 90   // 对应1.0
+            sbGamma.progress = 90
             sbThreshold.progress = 0
             sbDenoise.progress = 0
-            sbTemp.progress = 200   // 对应0
-            // 立即应用默认值
-            brightness = 0f; contrast = 1f; saturation = 1f; clipLimit = 3.0f; sharpenStrength = 0.5f
-            gamma = 1.0f; threshold = 0; denoise = 0f; colorTemp = 0
+            sbTemp.progress = 200
             sbPrintClean.progress = 0
+
+            // ★ 强制手动更新所有数值 TextView（不依赖监听器）
+            tvBrightnessValue.text = "0"
+            tvContrastValue.text = "1.0"
+            tvSaturationValue.text = "1.0"
+            tvClipLimitValue.text = "3.0"
+            tvSharpenValue.text = "0.5"
+            tvGammaValue.text = "1.0"
+            tvThresholdValue.text = "关"
+            tvDenoiseValue.text = "0"
+            tvTempValue.text = "0"
+            tvPrintCleanValue.text = "0"
+
+            // 更新成员变量为默认值
+            brightness = 0f
+            contrast = 1f
+            saturation = 1f
+            clipLimit = 3.0f
+            sharpenStrength = 0.5f
+            gamma = 1.0f
+            threshold = 0
+            denoise = 0f
+            colorTemp = 0
             printCleanStrength = 0f
+
+            // 保存默认值到 SharedPreferences
+            prefs.edit().apply {
+                putFloat(KEY_BRIGHTNESS, brightness)
+                putFloat(KEY_CONTRAST, contrast)
+                putFloat(KEY_SATURATION, saturation)
+                putFloat(KEY_CLIP_LIMIT, clipLimit)
+                putFloat(KEY_SHARPEN, sharpenStrength)
+                putFloat(KEY_GAMMA, gamma)
+                putInt(KEY_THRESHOLD, threshold)
+                putFloat(KEY_DENOISE, denoise)
+                putInt(KEY_COLOR_TEMP, colorTemp)
+                putFloat(KEY_PRINT_CLEAN, printCleanStrength)
+                apply()
+            }
+
+            // 刷新图片
             loadCurrentImage()
+            Toast.makeText(this, "已还原为默认值", Toast.LENGTH_SHORT).show()
         }
 
         // 应用按钮
         btnApply.setOnClickListener {
             readValuesAndSave(dialog)
-            loadCurrentImage()
-            Toast.makeText(this, "已应用", Toast.LENGTH_SHORT).show()
+            loadCurrentImage(showToast = true)  // 传入 true，图片刷新后显示提示
         }
 
         // 确定按钮
         btnOk.setOnClickListener {
             readValuesAndSave(dialog)
-            loadCurrentImage()
+            loadCurrentImage(showToast = true)
             dialog.dismiss()
         }
 
