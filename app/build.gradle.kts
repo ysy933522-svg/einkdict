@@ -19,6 +19,10 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a")  // 如需兼容32位，可添加 "armeabi-v7a"
+        }
     }
 
     buildTypes {
