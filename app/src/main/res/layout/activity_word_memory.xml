@@ -6,13 +6,12 @@
     android:orientation="vertical"
     android:padding="8dp">
 
-    <!-- 单词列表区域：占据剩余全部空间 -->
+    <!-- 单词列表区域 -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_marginTop="4dp"
         android:layout_weight="1">
-
         <LinearLayout
             android:id="@+id/layout_word_grid"
             android:layout_width="match_parent"
@@ -20,13 +19,12 @@
             android:orientation="vertical" />
     </ScrollView>
 
-    <!-- 释义区域：自适应高度 -->
+    <!-- 释义区域（原有，但 Activity 中未使用） -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
-        android:maxHeight="150dp">   <!-- 可选：限制最大高度 -->
-
+        android:maxHeight="150dp">
         <TextView
             android:id="@+id/tv_explanation"
             android:layout_width="match_parent"
@@ -45,10 +43,9 @@
         android:gravity="center"
         android:text=""
         android:textColor="#000000"
-        android:textSize="45sp"
-    />
+        android:textSize="45sp" />
 
-    <!-- 底部行：更新靠左，熟悉/陌生/进度靠右 -->
+    <!-- 底部行 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="44dp"
@@ -56,7 +53,6 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- 更新按钮：靠左 -->
         <Button
             android:id="@+id/btn_update"
             android:layout_width="wrap_content"
@@ -69,7 +65,19 @@
             android:textColor="#000000"
             android:textSize="16sp" />
 
-        <!-- 切换按钮（新增） -->
+        <!-- ★ 新增：收藏按钮 -->
+        <Button
+            android:id="@+id/btn_favorite"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:background="@null"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:stateListAnimator="@null"
+            android:text="收藏"
+            android:textColor="#000000"
+            android:textSize="16sp" />
+
         <Button
             android:id="@+id/btn_switch"
             android:layout_width="wrap_content"
@@ -82,7 +90,6 @@
             android:textColor="#000000"
             android:textSize="16sp" />
 
-        <!-- 右侧容器：熟悉、陌生、进度靠右 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
@@ -122,7 +129,5 @@
                 android:textColor="#666666"
                 android:textSize="14sp" />
         </LinearLayout>
-
     </LinearLayout>
-
 </LinearLayout>

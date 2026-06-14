@@ -94,6 +94,7 @@ class DictDbHelper(context: Context) {
                     "parent_path TEXT, " +
                     "favorite_time INTEGER)")
 
+
             // 记事本表
             memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS note(" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -275,6 +276,19 @@ class DictDbHelper(context: Context) {
         } finally {
             memoryDb!!.endTransaction()
         }
+    }
+    /**
+     * 从收藏表中随机获取一个单词
+     */
+    fun getRandomFavoriteWord(): String? {
+        if (!isMemoryReady || memoryDb == null) return null
+        val cursor = memoryDb!!.rawQuery("SELECT word FROM word_favorites ORDER BY RANDOM() LIMIT 1", null)
+        var word: String? = null
+        if (cursor.moveToFirst()) {
+            word = cursor.getString(0)
+        }
+        cursor.close()
+        return word
     }
 
     /**
@@ -486,6 +500,38 @@ class DictDbHelper(context: Context) {
             put("content", newContent)
         }
         memoryDb!!.update("note", values, "id = ?", arrayOf(id.toString()))
+    }
+
+    // ★ 新增：单词收藏相关方法
+    fun isWordFavorite(word: String): Boolean {
+        if (!isMemoryReady || memoryDb == null) return false
+        val cursor = memoryDb!!.query("word_favorites", null,
+            "word = ?", arrayOf(word), null, null, null)
+        return cursor.use { it.count > 0 }
+    }
+
+    fun batchInsertWordFavorites(words: List<String>) {
+        if (!isMemoryReady || memoryDb == null || words.isEmpty()) return
+        memoryDb!!.beginTransaction()
+        try {
+            for (word in words) {
+                val values = ContentValues().apply {
+                    put("word", word)
+                    put("favorite_time", System.currentTimeMillis())
+                }
+                memoryDb!!.insertWithOnConflict("word_favorites", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            }
+            memoryDb!!.setTransactionSuccessful()
+        } catch (e: Exception) {
+            Log.e(TAG, "批量插入单词收藏失败", e)
+        } finally {
+            memoryDb!!.endTransaction()
+        }
+    }
+
+    fun deleteWordFavorite(word: String) {
+        if (!isMemoryReady || memoryDb == null) return
+        memoryDb!!.delete("word_favorites", "word = ?", arrayOf(word))
     }
 }
 

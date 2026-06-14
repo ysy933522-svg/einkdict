@@ -1,633 +1,637 @@
-package com.example.myapplication
+    package com.example.myapplication
 
-// 在文件顶部添加导入
-import android.app.Activity
-import android.content.Context
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.graphics.Color
-import android.os.Build
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.provider.Settings
-import android.text.SpannableString
-import android.text.Spanned
-import android.text.TextPaint
-import android.text.method.LinkMovementMethod
-import android.text.style.ClickableSpan
-import android.util.Log
-import android.view.KeyEvent
-import android.view.View
-import android.view.WindowInsets
-import android.view.WindowInsetsController
-import android.view.inputmethod.InputMethodManager
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
-import androidx.annotation.RequiresApi
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
+    // 在文件顶部添加导入
+    import android.app.Activity
+    import android.content.Context
+    import android.content.Intent
+    import android.content.pm.PackageManager
+    import android.graphics.Color
+    import android.os.Build
+    import android.os.Bundle
+    import android.os.Handler
+    import android.os.Looper
+    import android.provider.Settings
+    import android.text.SpannableString
+    import android.text.Spanned
+    import android.text.TextPaint
+    import android.text.method.LinkMovementMethod
+    import android.text.style.ClickableSpan
+    import android.util.Log
+    import android.view.KeyEvent
+    import android.view.View
+    import android.view.WindowInsets
+    import android.view.WindowInsetsController
+    import android.view.inputmethod.InputMethodManager
+    import android.widget.Button
+    import android.widget.EditText
+    import android.widget.LinearLayout
+    import android.widget.TextView
+    import androidx.annotation.RequiresApi
+    import androidx.core.app.ActivityCompat
+    import androidx.core.content.ContextCompat
 
-class MainActivity : Activity() {
+    class MainActivity : Activity() {
 
-    // 在 MainActivity 类中添加以下方法和变量
-    private lateinit var pageIndicator: LinearLayout
-    private var pageButtons = mutableListOf<Button>()
+        // 在 MainActivity 类中添加以下方法和变量
+        private lateinit var pageIndicator: LinearLayout
+        private var pageButtons = mutableListOf<Button>()
 
-    private lateinit var etInput: EditText
-    private lateinit var btnQuery: Button
-    private lateinit var tvResult: TextView
-    private lateinit var btnPrev: Button
-    private lateinit var btnNext: Button
-    private lateinit var tvPageNum: TextView
-    private lateinit var btnHistory: Button
-    private lateinit var btnBack: Button
-    private lateinit var btnForward: Button
-    private lateinit var btnMemoryEntry: Button
+        private lateinit var etInput: EditText
+        private lateinit var btnQuery: Button
+        private lateinit var tvResult: TextView
+        private lateinit var btnPrev: Button
+        private lateinit var btnNext: Button
+        private lateinit var tvPageNum: TextView
+        private lateinit var btnHistory: Button
+        private lateinit var btnBack: Button
+        private lateinit var btnForward: Button
+        private lateinit var btnMemoryEntry: Button
 
-    private lateinit var btnClear: Button
+        private lateinit var btnClear: Button
 
-    private lateinit var dbHelper: DictDbHelper
+        private lateinit var dbHelper: DictDbHelper
 
-    private val PAGE_LINE_COUNT = 14
-    private var allLineList = mutableListOf<String>()
-    private var currentPage = 0
-    private var totalPage = 0
+        private val PAGE_LINE_COUNT = 14
+        private var allLineList = mutableListOf<String>()
+        private var currentPage = 0
+        private var totalPage = 0
 
-    private val browseStack = mutableListOf<String>()
-    private var browseIndex = -1
+        private val browseStack = mutableListOf<String>()
+        private var browseIndex = -1
 
-    private var isFastClick = false
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val clickInterval = 600L
+        private var isFastClick = false
+        private val mainHandler = Handler(Looper.getMainLooper())
+        private val clickInterval = 600L
 
-    // 动态申请 读取外部存储权限（读取词典db必需）
-    private val REQUEST_STORAGE_PERM = 1001
+        // 动态申请 读取外部存储权限（读取词典db必需）
+        private val REQUEST_STORAGE_PERM = 1001
 
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        Log.d("MAIN", "MainActivity onCreate 被调用，hashCode=${this.hashCode()}")
-
-
+        @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            setContentView(R.layout.activity_main)
+            Log.d("MAIN", "MainActivity onCreate 被调用，hashCode=${this.hashCode()}")
 
 
 
 
 
-        // 检查读取SD卡权限
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                this,
-                arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
-                REQUEST_STORAGE_PERM
-            )
-        }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (!android.os.Environment.isExternalStorageManager()) {
-                val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                startActivity(intent)
-                return
+
+            // 检查读取SD卡权限
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
+                    REQUEST_STORAGE_PERM
+                )
             }
-        }
 
-        etInput = findViewById(R.id.et_input)
-        btnQuery = findViewById(R.id.btn_query)
-        tvResult = findViewById(R.id.tv_result)
-        btnPrev = findViewById(R.id.btn_prev)
-        btnNext = findViewById(R.id.btn_next)
-        tvPageNum = findViewById(R.id.tv_page_num)
-        btnHistory = findViewById(R.id.btn_history)
-        btnBack = findViewById(R.id.btn_back)
-        btnForward = findViewById(R.id.btn_forward)
-        btnClear = findViewById(R.id.btn_clear)  // 新增
-        pageIndicator = findViewById(R.id.page_indicator)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                if (!android.os.Environment.isExternalStorageManager()) {
+                    val intent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                    startActivity(intent)
+                    return
+                }
+            }
 
-        dbHelper = (application as MyApplication).dbHelper
-        tvResult.movementMethod = LinkMovementMethod.getInstance()
-        tvResult.text = "..."
+            etInput = findViewById(R.id.et_input)
+            btnQuery = findViewById(R.id.btn_query)
+            tvResult = findViewById(R.id.tv_result)
+            btnPrev = findViewById(R.id.btn_prev)
+            btnNext = findViewById(R.id.btn_next)
+            tvPageNum = findViewById(R.id.tv_page_num)
+            btnHistory = findViewById(R.id.btn_history)
+            btnBack = findViewById(R.id.btn_back)
+            btnForward = findViewById(R.id.btn_forward)
+            btnClear = findViewById(R.id.btn_clear)  // 新增
+            pageIndicator = findViewById(R.id.page_indicator)
 
-
-        // 固定高度，防止 hint 消失时高度变化
-        etInput.setLines(1)
-        etInput.setMaxLines(1)
-        etInput.setHorizontallyScrolling(true)   // 禁止换行
-        etInput.setIncludeFontPadding(false)     // 减少字体内边距
-        etInput.gravity = android.view.Gravity.CENTER_VERTICAL  // 垂直居中
-
-        // 禁用所有点击效果
-        tvResult.isClickable = true
-        tvResult.isLongClickable = false
-        tvResult.setHighlightColor(Color.TRANSPARENT)  // 设置高亮颜色为透明
-        tvResult.isClickable = true
-        tvResult.movementMethod = LinkMovementMethod.getInstance()
-
-        // 永久启用按钮，避免 enabled 状态变化触发重绘
-        btnPrev.isEnabled = true
-        btnNext.isEnabled = true
-        btnPrev.setStateListAnimator(null)
-        btnNext.setStateListAnimator(null)
-        btnPrev.background = null
-        btnNext.background = null
-
-        findViewById<Button>(R.id.btnPdfReader).setOnClickListener {
-            startActivity(Intent(this, PdfReaderActivity::class.java))
-        }
-
-        // 强制全屏：隐藏状态栏和导航栏
-        window.setDecorFitsSystemWindows(false)
-        window.insetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-
-        // 让用户从屏幕边缘滑动时临时显示系统栏（沉浸模式）
-        window.insetsController?.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            dbHelper = (application as MyApplication).dbHelper
+            tvResult.movementMethod = LinkMovementMethod.getInstance()
+            tvResult.text = "..."
 
 
+            // 固定高度，防止 hint 消失时高度变化
+            etInput.setLines(1)
+            etInput.setMaxLines(1)
+            etInput.setHorizontallyScrolling(true)   // 禁止换行
+            etInput.setIncludeFontPadding(false)     // 减少字体内边距
+            etInput.gravity = android.view.Gravity.CENTER_VERTICAL  // 垂直居中
 
-        // 去掉所有按钮的点击特效（波纹、背景变化等）
-        listOf(btnQuery, btnPrev, btnNext, btnBack, btnForward, btnHistory, btnClear).forEach { btn ->
-            btn.isEnabled = true          // 始终启用
-            btn.background = null         // 移除背景
-            btn.setStateListAnimator(null) // 移除状态列表动画（API 21+）
-            btn.isClickable = true
-        }
+            // 禁用所有点击效果
+            tvResult.isClickable = true
+            tvResult.isLongClickable = false
+            tvResult.setHighlightColor(Color.TRANSPARENT)  // 设置高亮颜色为透明
+            tvResult.isClickable = true
+            tvResult.movementMethod = LinkMovementMethod.getInstance()
+
+            // 永久启用按钮，避免 enabled 状态变化触发重绘
+            btnPrev.isEnabled = true
+            btnNext.isEnabled = true
+            btnPrev.setStateListAnimator(null)
+            btnNext.setStateListAnimator(null)
+            btnPrev.background = null
+            btnNext.background = null
+
+            findViewById<Button>(R.id.btnPdfReader).setOnClickListener {
+                startActivity(Intent(this, PdfReaderActivity::class.java))
+            }
+
+            // 强制全屏：隐藏状态栏和导航栏
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+
+            // 让用户从屏幕边缘滑动时临时显示系统栏（沉浸模式）
+            window.insetsController?.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
 
-        btnMemoryEntry = findViewById(R.id.btn_start_learning)
-        btnMemoryEntry.setOnClickListener {
-            if (btnMemoryEntry.text == "返回背单词") {
-                // 返回背单词页面
-                val intent = Intent(this, WordMemoryActivity::class.java)
-                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                startActivity(intent)
-            } else {
-                // 进入背单词页面
-                val intent = Intent(this, WordMemoryActivity::class.java)
-                intent.putExtra("CATEGORY", "CET4") // 根据需要传递分类
+
+            // 去掉所有按钮的点击特效（波纹、背景变化等）
+            listOf(btnQuery, btnPrev, btnNext, btnBack, btnForward, btnHistory, btnClear).forEach { btn ->
+                btn.isEnabled = true          // 始终启用
+                btn.background = null         // 移除背景
+                btn.setStateListAnimator(null) // 移除状态列表动画（API 21+）
+                btn.isClickable = true
+            }
+
+
+            btnMemoryEntry = findViewById(R.id.btn_start_learning)
+            btnMemoryEntry.setOnClickListener {
+                if (btnMemoryEntry.text == "返回背单词") {
+                    // 返回背单词页面
+                    val intent = Intent(this, WordMemoryActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    startActivity(intent)
+                } else {
+                    // 进入背单词页面
+                    val intent = Intent(this, WordMemoryActivity::class.java)
+                    intent.putExtra("CATEGORY", "CET4") // 根据需要传递分类
+                    startActivity(intent)
+                }
+            }
+            val btnToggleMenu = findViewById<Button>(R.id.btn_toggle_menu)
+            val layoutMenuButtons = findViewById<LinearLayout>(R.id.layout_menu_buttons)
+
+            btnToggleMenu.setOnClickListener {
+                val isVisible = layoutMenuButtons.visibility == View.VISIBLE
+                layoutMenuButtons.visibility = if (isVisible) View.GONE else View.VISIBLE
+            }
+
+            // 处理从背单词页面传来的 Intent
+            handleIntent(intent)
+
+            val btnImageViewer = findViewById<Button>(R.id.btn_image_viewer)
+            btnImageViewer.setOnClickListener {
+                val intent = Intent(this, ImageViewerActivity::class.java)
                 startActivity(intent)
             }
-        }
-        val btnToggleMenu = findViewById<Button>(R.id.btn_toggle_menu)
-        val layoutMenuButtons = findViewById<LinearLayout>(R.id.layout_menu_buttons)
 
-        btnToggleMenu.setOnClickListener {
-            val isVisible = layoutMenuButtons.visibility == View.VISIBLE
-            layoutMenuButtons.visibility = if (isVisible) View.GONE else View.VISIBLE
-        }
-
-        // 处理从背单词页面传来的 Intent
-        handleIntent(intent)
-
-        val btnImageViewer = findViewById<Button>(R.id.btn_image_viewer)
-        btnImageViewer.setOnClickListener {
-            val intent = Intent(this, ImageViewerActivity::class.java)
-            startActivity(intent)
-        }
-
-        val btnNote = findViewById<Button>(R.id.btn_note)
-        btnNote.setOnClickListener {
-            val intent = Intent(this, NoteEditorActivity::class.java)
-            startActivity(intent)
-        }
+            val btnNote = findViewById<Button>(R.id.btn_note)
+            btnNote.setOnClickListener {
+                val intent = Intent(this, NoteEditorActivity::class.java)
+                startActivity(intent)
+            }
 
 
-        // 设置清除按钮点击事件
-        btnClear.setOnClickListener {
-            clearInput()
-        }
+            // 设置清除按钮点击事件
+            btnClear.setOnClickListener {
+                clearInput()
+            }
 
-        updatePageNum()
-        updatePageBtnState()
-        updateBrowseBtnState()
-
-
-        // 设置清除按钮点击事件
-        btnClear.setOnClickListener {
-            clearInput()
-        }
+            updatePageNum()
+            updatePageBtnState()
+            updateBrowseBtnState()
 
 
-        // 设置回车键监听
-        etInput.setOnKeyListener { _, keyCode, event ->
-            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
-                // 防止快速重复点击
+            // 设置清除按钮点击事件
+            btnClear.setOnClickListener {
+                clearInput()
+            }
+
+
+            // 设置回车键监听
+            etInput.setOnKeyListener { _, keyCode, event ->
+                if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+                    // 防止快速重复点击
+                    if (!isFastClick) {
+                        isFastClick = true
+                        doQuery(false)
+                        mainHandler.postDelayed({ isFastClick = false }, clickInterval)
+                    }
+                    return@setOnKeyListener true  // 消耗事件
+                }
+                false
+            }
+
+
+            btnQuery.setOnClickListener {
                 if (!isFastClick) {
                     isFastClick = true
                     doQuery(false)
                     mainHandler.postDelayed({ isFastClick = false }, clickInterval)
                 }
-                return@setOnKeyListener true  // 消耗事件
             }
-            false
-        }
 
 
-        btnQuery.setOnClickListener {
-            if (!isFastClick) {
-                isFastClick = true
-                doQuery(false)
-                mainHandler.postDelayed({ isFastClick = false }, clickInterval)
-            }
-        }
-
-
-        btnPrev.setOnClickListener {
-            if (!isFastClick && currentPage > 0) {
-                isFastClick = true
-                currentPage--
-                showCurrentPage()
-                updatePageNum()
-                // 延迟更新按钮颜色，避开点击事件的瞬时刷新
-                mainHandler.post {
-                    updatePageBtnState()
-                    updatePageIndicator()
-                    isFastClick = false
-                }
-            }
-        }
-
-        btnNext.setOnClickListener {
-            if (!isFastClick && currentPage < totalPage - 1) {
-                isFastClick = true
-                currentPage++
-                showCurrentPage()
-                updatePageNum()
-                mainHandler.post {
-                    updatePageBtnState()
-                    updatePageIndicator()
-                    isFastClick = false
-                }
-            }
-        }
-
-
-        btnHistory.setOnClickListener {
-            if (!isFastClick) {
-                isFastClick = true
-                // 启动HistoryActivity页面
-                val intent = Intent(this@MainActivity, HistoryActivity::class.java)
-                startActivityForResult(intent, 100)  // 100是请求码
-                mainHandler.postDelayed({ isFastClick = false }, clickInterval)
-            }
-        }
-
-        btnBack.setOnClickListener {
-            if (browseIndex > 0) {
-                browseIndex--
-                val word = browseStack[browseIndex]
-                etInput.setText(word)
-                doQuery(true)
-                updateBrowseBtnState()
-            }
-        }
-
-        btnForward.setOnClickListener {
-            if (browseIndex < browseStack.size - 1) {
-                browseIndex++
-                val word = browseStack[browseIndex]
-                etInput.setText(word)
-                doQuery(true)
-                updateBrowseBtnState()
-            }
-        }
-
-//        checkDbReady()
-    }
-
-    private val MAX_VISIBLE_PAGES = 13
-    // 添加更新页码指示器的方法
-    private fun updatePageIndicator() {
-        // 清空现有按钮
-        pageIndicator.removeAllViews()
-        pageButtons.clear()
-
-        if (totalPage <= 0) return
-
-        val startPage: Int
-        val endPage: Int
-
-        if (totalPage <= MAX_VISIBLE_PAGES) {
-            // 总页数不足10页，全部显示
-            startPage = 0
-            endPage = totalPage - 1
-        } else {
-            // 总页数大于10，显示10页，当前页尽量居中
-            // 先尝试让当前页位于第5位（即前后各4页）
-            var start = currentPage - 4
-            if (start < 0) {
-                start = 0
-            }
-            var end = start + MAX_VISIBLE_PAGES - 1
-            if (end >= totalPage) {
-                end = totalPage - 1
-                start = end - MAX_VISIBLE_PAGES + 1
-            }
-            startPage = start
-            endPage = end
-        }
-
-        // 生成页码按钮
-        for (page in startPage..endPage) {
-            val pageBtn = createPageButton(page, "${page + 1}")
-            pageIndicator.addView(pageBtn)
-            pageButtons.add(pageBtn)
-        }
-    }
-
-
-    // 创建页码按钮
-    private fun createPageButton(page: Int, text: String): Button {
-        val button = Button(this)
-        button.text = text
-        button.textSize = 20f
-        button.background = null
-        button.setStateListAnimator(null)
-        button.setPadding(4, 4, 4, 4)
-        button.minWidth = 0
-        button.minimumWidth = 0
-        button.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            marginStart = 4
-            marginEnd = 4
-        }
-
-        // 所有页码按钮固定黑色
-        button.setTextColor(Color.BLACK)
-        button.isEnabled = true
-
-
-        if (page >= 0) {
-            button.setOnClickListener {
-                if (!isFastClick && page != currentPage) {
+            btnPrev.setOnClickListener {
+                if (!isFastClick && currentPage > 0) {
                     isFastClick = true
-                    currentPage = page
+                    currentPage--
                     showCurrentPage()
-                    updatePageBtnState()
                     updatePageNum()
-                    updatePageIndicator()
+                    // 延迟更新按钮颜色，避开点击事件的瞬时刷新
+                    mainHandler.post {
+                        updatePageBtnState()
+                        updatePageIndicator()
+                        isFastClick = false
+                    }
+                }
+            }
+
+            btnNext.setOnClickListener {
+                if (!isFastClick && currentPage < totalPage - 1) {
+                    isFastClick = true
+                    currentPage++
+                    showCurrentPage()
+                    updatePageNum()
+                    mainHandler.post {
+                        updatePageBtnState()
+                        updatePageIndicator()
+                        isFastClick = false
+                    }
+                }
+            }
+
+
+            btnHistory.setOnClickListener {
+                if (!isFastClick) {
+                    isFastClick = true
+                    // 启动HistoryActivity页面
+                    val intent = Intent(this@MainActivity, HistoryActivity::class.java)
+                    startActivityForResult(intent, 100)  // 100是请求码
                     mainHandler.postDelayed({ isFastClick = false }, clickInterval)
                 }
             }
-        } else {
-            // 省略号按钮（实际不会用到，保留安全）
-            button.isEnabled = false
-        }
 
-        return button
-    }
-
-
-
-    // 添加清除输入框的方法
-    private fun clearInput() {
-        etInput.setText("")
-        etInput.requestFocus()  // 焦点回到输入框
-
-        // 显示软键盘
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.showSoftInput(etInput, InputMethodManager.SHOW_IMPLICIT)
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 100 && resultCode == Activity.RESULT_OK) {
-            val selectedWord = data?.getStringExtra("SELECTED_WORD")
-            if (selectedWord != null && selectedWord.isNotBlank()) {
-                etInput.setText(selectedWord)
-                doQuery(false)
+            btnBack.setOnClickListener {
+                if (browseIndex > 0) {
+                    browseIndex--
+                    val word = browseStack[browseIndex]
+                    etInput.setText(word)
+                    doQuery(true)
+                    updateBrowseBtnState()
+                }
             }
-        }
-    }
 
-    private fun checkDbReady() {
-        mainHandler.postDelayed({
-            if (dbHelper.isDictReady) {
-                tvResult.text = "词典已就绪，请输入单词查询"
+            btnForward.setOnClickListener {
+                if (browseIndex < browseStack.size - 1) {
+                    browseIndex++
+                    val word = browseStack[browseIndex]
+                    etInput.setText(word)
+                    doQuery(true)
+                    updateBrowseBtnState()
+                }
+            }
+
+    //        checkDbReady()
+        }
+
+        private val MAX_VISIBLE_PAGES = 13
+        // 添加更新页码指示器的方法
+        private fun updatePageIndicator() {
+            // 清空现有按钮
+            pageIndicator.removeAllViews()
+            pageButtons.clear()
+
+            if (totalPage <= 0) return
+
+            val startPage: Int
+            val endPage: Int
+
+            if (totalPage <= MAX_VISIBLE_PAGES) {
+                // 总页数不足10页，全部显示
+                startPage = 0
+                endPage = totalPage - 1
             } else {
-                checkDbReady()
-            }
-        }, 800)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
-    private fun doQuery(isJump: Boolean) {
-        // 如果词典尚未就绪，延迟重试
-        val input = etInput.text.toString().trim()
-        if (input.isEmpty()) {
-            tvResult.text = "请输入英文单词"
-            return
-        }
-        if (!dbHelper.isDictReady) {
-            tvResult.text = "词典尚未加载完成，请稍后"
-            return
-        }
-
-        if (!isJump) {
-            if (browseIndex != browseStack.size - 1) {
-                while (browseStack.size > browseIndex + 1) {
-                    browseStack.removeAt(browseStack.lastIndex)
+                // 总页数大于10，显示10页，当前页尽量居中
+                // 先尝试让当前页位于第5位（即前后各4页）
+                var start = currentPage - 4
+                if (start < 0) {
+                    start = 0
                 }
+                var end = start + MAX_VISIBLE_PAGES - 1
+                if (end >= totalPage) {
+                    end = totalPage - 1
+                    start = end - MAX_VISIBLE_PAGES + 1
+                }
+                startPage = start
+                endPage = end
             }
-            browseStack.add(input)
-            browseIndex = browseStack.size - 1
-            updateBrowseBtnState()
+
+            // 生成页码按钮
+            for (page in startPage..endPage) {
+                val pageBtn = createPageButton(page, "${page + 1}")
+                pageIndicator.addView(pageBtn)
+                pageButtons.add(pageBtn)
+            }
         }
 
-        Thread {
-            val dictResultList = dbHelper.queryWordWithDict(input)
-            val allText = dictResultList.joinToString(separator = "\n\n")
-            allLineList = allText.split("\n").toMutableList()
-            allLineList.removeAll { it.isBlank() }
 
-            totalPage = if (allLineList.isEmpty()) {
-                0
+        // 创建页码按钮
+        private fun createPageButton(page: Int, text: String): Button {
+            val button = Button(this)
+            button.text = text
+            button.textSize = 20f
+            button.background = null
+            button.setStateListAnimator(null)
+            button.setPadding(4, 4, 4, 4)
+            button.minWidth = 0
+            button.minimumWidth = 0
+            button.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                marginStart = 4
+                marginEnd = 4
+            }
+
+            // 所有页码按钮固定黑色
+            button.setTextColor(Color.BLACK)
+            button.isEnabled = true
+
+
+            if (page >= 0) {
+                button.setOnClickListener {
+                    if (!isFastClick && page != currentPage) {
+                        isFastClick = true
+                        currentPage = page
+                        showCurrentPage()
+                        updatePageBtnState()
+                        updatePageNum()
+                        updatePageIndicator()
+                        mainHandler.postDelayed({ isFastClick = false }, clickInterval)
+                    }
+                }
             } else {
-                (allLineList.size + PAGE_LINE_COUNT - 1) / PAGE_LINE_COUNT
+                // 省略号按钮（实际不会用到，保留安全）
+                button.isEnabled = false
             }
-            currentPage = 0
 
-            runOnUiThread {
-                if (allLineList.isEmpty()) {
-                    tvResult.text = "未查询到该单词"
-                    updatePageNum()
-                    updatePageBtnState()
-                    updatePageIndicator()  // 更新页码指示器
-                    return@runOnUiThread
-                }
-                try{
-                    dbHelper.cacheHistory(input)
-                }catch (e: Exception){
-                    e.printStackTrace()
-                }
-                showCurrentPage()
-                updatePageBtnState()
-                updatePageNum()
-                updatePageIndicator()  // 更新页码指示器
-            }
-        }.start()
-    }
-
-    private fun showCurrentPage() {
-        val startIndex = currentPage * PAGE_LINE_COUNT
-        val endIndex = startIndex + PAGE_LINE_COUNT
-        val pageLines = if (endIndex >= allLineList.size) {
-            allLineList.subList(startIndex, allLineList.size).toMutableList()
-        } else {
-            allLineList.subList(startIndex, endIndex).toMutableList()
+            return button
         }
-        while (pageLines.size < PAGE_LINE_COUNT) pageLines.add("")
-        val pageContent = pageLines.joinToString("\n")
 
-        val spannable = SpannableString(pageContent)
-        val wordRegex = Regex("[a-zA-Z]+")
-        val matches = wordRegex.findAll(pageContent)
 
-        for (match in matches) {
-            val clickSpan = object : ClickableSpan() {
-                override fun onClick(widget: View) {
-                    etInput.setText(match.value)
+
+        // 添加清除输入框的方法
+        private fun clearInput() {
+            etInput.setText("")
+            etInput.requestFocus()  // 焦点回到输入框
+
+            // 显示软键盘
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(etInput, InputMethodManager.SHOW_IMPLICIT)
+        }
+
+        override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+            super.onActivityResult(requestCode, resultCode, data)
+            if (requestCode == 100 && resultCode == Activity.RESULT_OK) {
+                val selectedWord = data?.getStringExtra("SELECTED_WORD")
+                if (selectedWord != null && selectedWord.isNotBlank()) {
+                    etInput.setText(selectedWord)
                     doQuery(false)
                 }
+            }
+        }
 
-                override fun updateDrawState(ds: TextPaint) {
-                    super.updateDrawState(ds)
-                    ds.color = Color.BLACK
-                    ds.isUnderlineText = false
+        private fun checkDbReady() {
+            mainHandler.postDelayed({
+                if (dbHelper.isDictReady) {
+                    tvResult.text = "词典已就绪，请输入单词查询"
+                } else {
+                    checkDbReady()
+                }
+            }, 800)
+        }
+
+        @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+        private fun doQuery(isJump: Boolean) {
+            // 如果词典尚未就绪，延迟重试
+            val input = etInput.text.toString().trim()
+            if (input.isEmpty()) {
+                tvResult.text = "请输入英文单词"
+                return
+            }
+            if (!dbHelper.isDictReady) {
+                tvResult.text = "词典尚未加载完成，请稍后"
+                return
+            }
+
+            if (!isJump) {
+                if (browseIndex != browseStack.size - 1) {
+                    while (browseStack.size > browseIndex + 1) {
+                        browseStack.removeAt(browseStack.lastIndex)
+                    }
+                }
+                browseStack.add(input)
+                browseIndex = browseStack.size - 1
+                updateBrowseBtnState()
+            }
+
+            Thread {
+                val dictResultList = dbHelper.queryWordWithDict(input)
+                val allText = dictResultList.joinToString(separator = "\n\n")
+                allLineList = allText.split("\n").toMutableList()
+                allLineList.removeAll { it.isBlank() }
+
+                totalPage = if (allLineList.isEmpty()) {
+                    0
+                } else {
+                    (allLineList.size + PAGE_LINE_COUNT - 1) / PAGE_LINE_COUNT
+                }
+                currentPage = 0
+
+                runOnUiThread {
+                    if (allLineList.isEmpty()) {
+                        tvResult.text = "未查询到该单词"
+                        updatePageNum()
+                        updatePageBtnState()
+                        updatePageIndicator()  // 更新页码指示器
+                        return@runOnUiThread
+                    }
+                    try{
+                        dbHelper.cacheHistory(input)
+                    }catch (e: Exception){
+                        e.printStackTrace()
+                    }
+                    showCurrentPage()
+                    updatePageBtnState()
+                    updatePageNum()
+                    updatePageIndicator()  // 更新页码指示器
+                }
+            }.start()
+        }
+
+        private fun showCurrentPage() {
+            val startIndex = currentPage * PAGE_LINE_COUNT
+            val endIndex = startIndex + PAGE_LINE_COUNT
+            val pageLines = if (endIndex >= allLineList.size) {
+                allLineList.subList(startIndex, allLineList.size).toMutableList()
+            } else {
+                allLineList.subList(startIndex, endIndex).toMutableList()
+            }
+            while (pageLines.size < PAGE_LINE_COUNT) pageLines.add("")
+            val pageContent = pageLines.joinToString("\n")
+
+            val spannable = SpannableString(pageContent)
+            val wordRegex = Regex("[a-zA-Z]+")
+            val matches = wordRegex.findAll(pageContent)
+
+            for (match in matches) {
+                val clickSpan = object : ClickableSpan() {
+                    override fun onClick(widget: View) {
+                        etInput.setText(match.value)
+                        doQuery(false)
+                    }
+
+                    override fun updateDrawState(ds: TextPaint) {
+                        super.updateDrawState(ds)
+                        ds.color = Color.BLACK
+                        ds.isUnderlineText = false
+                    }
+                }
+                spannable.setSpan(
+                    clickSpan,
+                    match.range.first,
+                    match.range.last + 1,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+            tvResult.text = spannable
+        }
+
+        private fun updatePageNum() {
+            tvPageNum.text = "${currentPage + 1} / $totalPage"
+        }
+
+        private fun updatePageBtnState() {
+            // 不改变 enabled，只设置颜色
+
+        }
+
+
+
+        private fun updateBrowseBtnState() {
+
+        }
+
+        // 蓝牙遥控器 / 翻页笔 按键翻页
+        override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+            if (event.repeatCount > 0) {
+                return super.onKeyDown(keyCode, event)
+            }
+
+            when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_VOLUME_UP,
+                KeyEvent.KEYCODE_PAGE_DOWN -> {
+                    if (currentPage < totalPage - 1) {
+                        currentPage++
+                        showCurrentPage()
+                        updatePageBtnState()
+                        updatePageNum()
+                    }
+                    return true
+                }
+
+                KeyEvent.KEYCODE_DPAD_UP,
+                KeyEvent.KEYCODE_VOLUME_DOWN,
+                KeyEvent.KEYCODE_PAGE_UP -> {
+                    if (currentPage > 0) {
+                        currentPage--
+                        showCurrentPage()
+                        updatePageBtnState()
+                        updatePageNum()
+                    }
+                    return true
                 }
             }
-            spannable.setSpan(
-                clickSpan,
-                match.range.first,
-                match.range.last + 1,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
-        }
-        tvResult.text = spannable
-    }
 
-    private fun updatePageNum() {
-        tvPageNum.text = "${currentPage + 1} / $totalPage"
-    }
-
-    private fun updatePageBtnState() {
-        // 不改变 enabled，只设置颜色
-
-    }
-
-
-
-    private fun updateBrowseBtnState() {
-
-    }
-
-    // 蓝牙遥控器 / 翻页笔 按键翻页
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (event.repeatCount > 0) {
             return super.onKeyDown(keyCode, event)
         }
 
-        when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_DOWN,
-            KeyEvent.KEYCODE_VOLUME_UP,
-            KeyEvent.KEYCODE_PAGE_DOWN -> {
-                if (currentPage < totalPage - 1) {
-                    currentPage++
-                    showCurrentPage()
-                    updatePageBtnState()
-                    updatePageNum()
-                }
-                return true
-            }
-
-            KeyEvent.KEYCODE_DPAD_UP,
-            KeyEvent.KEYCODE_VOLUME_DOWN,
-            KeyEvent.KEYCODE_PAGE_UP -> {
-                if (currentPage > 0) {
-                    currentPage--
-                    showCurrentPage()
-                    updatePageBtnState()
-                    updatePageNum()
-                }
-                return true
-            }
+        // 权限申请结果回调
+        override fun onRequestPermissionsResult(
+            requestCode: Int,
+            permissions: Array<out String>,
+            grantResults: IntArray
+        ) {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    //        if (requestCode == REQUEST_STORAGE_PERM) {
+    //            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+    //                // 权限通过，继续加载词典
+    //                checkDbReady()
+    //            } else {
+    //                tvResult.text = "请授予存储权限，否则无法加载词典"
+    //            }
+    //        }
         }
 
-        return super.onKeyDown(keyCode, event)
-    }
-
-    // 权限申请结果回调
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-//        if (requestCode == REQUEST_STORAGE_PERM) {
-//            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-//                // 权限通过，继续加载词典
-//                checkDbReady()
-//            } else {
-//                tvResult.text = "请授予存储权限，否则无法加载词典"
-//            }
-//        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        dbHelper.close()
-    }
-
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        handleIntent(intent)
-    }
-
-    private fun handleIntent(intent: Intent?) {
-        if (intent == null) return
-        val queryWord = intent.getStringExtra("QUERY_WORD")
-        val fromMemory = intent.getBooleanExtra("FROM_MEMORY", false)
-
-        // 更新按钮文本
-//        btnMemoryEntry.text = if (fromMemory) "记单词" else "记单词"
-
-        if (queryWord != null && queryWord.isNotBlank()) {
-            // 来自背单词页面：直接查询传入的单词
-            etInput.setText(queryWord)
-            doQuery(false)
-        } else if (etInput.text.isNullOrBlank()) {
-            // 正常启动且输入框为空：自动加载随机单词
-            loadRandomWord()
+        override fun onDestroy() {
+            super.onDestroy()
+            dbHelper.close()
         }
-    }
 
-    private fun loadRandomWord() {
-        // 等待记忆数据库就绪
-        if (dbHelper.isMemoryReady) {
-            val randomWord = dbHelper.getRandomWordFromMemory()
-            if (randomWord != null) {
-                etInput.setText(randomWord)
+
+        override fun onNewIntent(intent: Intent) {
+            super.onNewIntent(intent)
+            handleIntent(intent)
+        }
+
+        private fun handleIntent(intent: Intent?) {
+            if (intent == null) return
+            val queryWord = intent.getStringExtra("QUERY_WORD")
+            val fromMemory = intent.getBooleanExtra("FROM_MEMORY", false)
+
+            // 更新按钮文本
+    //        btnMemoryEntry.text = if (fromMemory) "记单词" else "记单词"
+
+            if (queryWord != null && queryWord.isNotBlank()) {
+                // 来自背单词页面：直接查询传入的单词
+                etInput.setText(queryWord)
                 doQuery(false)
-            } else {
-                tvResult.text = "记忆库中没有单词，请先导入"
-            }
-        } else {
-            // 数据库未就绪，延迟重试
-            Handler(Looper.getMainLooper()).postDelayed({
+            } else if (etInput.text.isNullOrBlank()) {
+                // 正常启动且输入框为空：自动加载随机单词
                 loadRandomWord()
-            }, 300)
+            }
+        }
+
+        private fun loadRandomWord() {
+            if (dbHelper.isMemoryReady) {
+                // 优先从收藏表取随机单词
+                var randomWord = dbHelper.getRandomFavoriteWord()
+                if (randomWord == null) {
+                    // 收藏表为空，回退到记忆库
+                    randomWord = dbHelper.getRandomWordFromMemory()
+                }
+                if (randomWord != null) {
+                    etInput.setText(randomWord)
+                    doQuery(false)
+                } else {
+                    tvResult.text = "收藏和记忆库均为空，请先导入"
+                }
+            } else {
+                // 数据库未就绪，延迟重试
+                Handler(Looper.getMainLooper()).postDelayed({
+                    loadRandomWord()
+                }, 300)
+            }
+        }
+
+        override fun onPause() {
+            super.onPause()
+            dbHelper.flushHistory()
         }
     }
-
-    override fun onPause() {
-        super.onPause()
-        dbHelper.flushHistory()
-    }
-}

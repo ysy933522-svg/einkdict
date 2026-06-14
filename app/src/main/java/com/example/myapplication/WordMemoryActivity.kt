@@ -16,6 +16,7 @@ class WordMemoryActivity : Activity() {
     private lateinit var btnStrange: Button
     private lateinit var btnUpdate: Button
     private lateinit var btnSwitch: Button
+    private lateinit var btnFavorite: Button  // ★ 新增
     private lateinit var tvProgress: TextView
 
     private lateinit var dbHelper: DictDbHelper
@@ -28,6 +29,10 @@ class WordMemoryActivity : Activity() {
     private var displayedWords = mutableListOf<WordMemoryItem>()
     private var currentSelectedIndex = 0
     private var hasUnsavedChanges = false
+
+    // ★ 新增：收藏相关（内存标记，保存时批量操作）
+    private val pendingAddFavorites = mutableSetOf<String>()
+    private val pendingRemoveFavorites = mutableSetOf<String>()
 
     private val rowViews = mutableListOf<LinearLayout>()
 
@@ -43,6 +48,7 @@ class WordMemoryActivity : Activity() {
         btnStrange = findViewById(R.id.btn_strange)
         btnUpdate = findViewById(R.id.btn_update)
         btnSwitch = findViewById(R.id.btn_switch)
+        btnFavorite = findViewById(R.id.btn_favorite)  // ★ 新增
         tvProgress = findViewById(R.id.tv_progress)
 
         dbHelper = (application as MyApplication).dbHelper
@@ -54,6 +60,7 @@ class WordMemoryActivity : Activity() {
         btnStrange.setOnClickListener { onStrange() }
         btnUpdate.setOnClickListener { saveChanges() }
         btnSwitch.setOnClickListener { reshuffle() }
+        btnFavorite.setOnClickListener { toggleFavorite() }  // ★ 新增
 
         // 点击当前选中单词跳转到主页面查词
         tvCurrentWord.setOnClickListener {
@@ -65,7 +72,6 @@ class WordMemoryActivity : Activity() {
                 startActivity(intent)
             }
         }
-
     }
 
     private fun loadWords(category: String) {
@@ -131,7 +137,6 @@ class WordMemoryActivity : Activity() {
                 tvWord.gravity = Gravity.CENTER
                 tvWord.setPadding(10, 10, 10, 10)
 
-                // 点击跳转到主页面查词
                 tvWord.setOnClickListener {
                     if (index < displayedWords.size) {
                         val word = displayedWords[index].word
@@ -141,13 +146,11 @@ class WordMemoryActivity : Activity() {
                         startActivity(intent)
                     }
                 }
-
                 rowLayout.addView(tvWord)
             }
             layoutWordGrid.addView(rowLayout)
             rowViews.add(rowLayout)
         }
-
         refreshWordGrid()
     }
 
@@ -173,6 +176,8 @@ class WordMemoryActivity : Activity() {
             tvCurrentWord.text = displayedWords[currentSelectedIndex].word
             btnFamiliar.isEnabled = true
             btnStrange.isEnabled = true
+            // ★ 新增：更新收藏按钮状态
+            updateFavoriteButton()
         } else {
             tvCurrentWord.text = ""
             btnFamiliar.isEnabled = false
@@ -180,6 +185,43 @@ class WordMemoryActivity : Activity() {
         }
     }
 
+    // ★ 新增：收藏切换
+    private fun toggleFavorite() {
+        if (currentSelectedIndex >= displayedWords.size) return
+        val word = displayedWords[currentSelectedIndex].word
+
+        val willBeFavorited = pendingAddFavorites.contains(word) ||
+                (dbHelper.isWordFavorite(word) && !pendingRemoveFavorites.contains(word))
+
+        if (willBeFavorited) {
+            if (pendingAddFavorites.contains(word)) {
+                pendingAddFavorites.remove(word)
+            } else {
+                pendingRemoveFavorites.add(word)
+            }
+            btnFavorite.text = "收藏"
+            Toast.makeText(this, "已取消收藏（保存后生效）", Toast.LENGTH_SHORT).show()
+        } else {
+            pendingAddFavorites.add(word)
+            if (pendingRemoveFavorites.contains(word)) {
+                pendingRemoveFavorites.remove(word)
+            }
+            btnFavorite.text = "取消收藏"
+            Toast.makeText(this, "已标记收藏（保存后生效）", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ★ 新增：更新收藏按钮文字
+    private fun updateFavoriteButton() {
+        if (currentSelectedIndex < displayedWords.size) {
+            val word = displayedWords[currentSelectedIndex].word
+            val willBeFavorited = pendingAddFavorites.contains(word) ||
+                    (dbHelper.isWordFavorite(word) && !pendingRemoveFavorites.contains(word))
+            btnFavorite.text = if (willBeFavorited) "取消收藏" else "收藏"
+        }
+    }
+
+    // ===== 以下为原有函数，完全不变 =====
     private fun onFamiliar() {
         if (currentSelectedIndex >= displayedWords.size) return
         val item = displayedWords[currentSelectedIndex]
@@ -233,19 +275,39 @@ class WordMemoryActivity : Activity() {
         tvProgress.text = "剩余: $remaining"
     }
 
+    // ★ 修改：保存时同时处理收藏
     private fun saveChanges() {
-        if (!hasUnsavedChanges) {
-            ToastUtil.show(this, "没有需要更新的数据")
-            return
+        var savedSomething = false
+
+        // 保存分数（原有逻辑）
+        if (hasUnsavedChanges) {
+            val changedItems = allLoadedWords.filter { it.deltaFamiliarity != 0 || it.deltaStrangeness != 0 }
+            if (changedItems.isNotEmpty()) {
+                dbHelper.batchUpdateMemory(changedItems)
+                hasUnsavedChanges = false
+                savedSomething = true
+            }
         }
-        val changedItems = allLoadedWords.filter { it.deltaFamiliarity != 0 || it.deltaStrangeness != 0 }
-        if (changedItems.isEmpty()) {
-            ToastUtil.show(this, "没有变化")
-            return
+
+        // ★ 新增：保存收藏变更
+        if (pendingAddFavorites.isNotEmpty()) {
+            dbHelper.batchInsertWordFavorites(pendingAddFavorites.toList())
+            pendingAddFavorites.clear()
+            savedSomething = true
         }
-        dbHelper.batchUpdateMemory(changedItems)
-        hasUnsavedChanges = false
-        ToastUtil.show(this, "已更新")
+        if (pendingRemoveFavorites.isNotEmpty()) {
+            for (word in pendingRemoveFavorites) {
+                dbHelper.deleteWordFavorite(word)
+            }
+            pendingRemoveFavorites.clear()
+            savedSomething = true
+        }
+
+        if (savedSomething) {
+            Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "没有需要保存的数据", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onPause() {
