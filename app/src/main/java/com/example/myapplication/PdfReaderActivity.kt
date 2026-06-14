@@ -100,7 +100,7 @@ class PdfReaderActivity : AppCompatActivity() {
             if (currentDocPath.isNotEmpty()) {
                 showSettingsDialog()
             } else {
-                Toast.makeText(this, "请先打开一个PDF文件", Toast.LENGTH_SHORT).show()
+                ToastUtil.show(this, "请先打开一个PDF文件")
             }
         }
 

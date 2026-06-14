@@ -322,11 +322,11 @@ class ImageViewerActivity : Activity() {
         if (pendingFavorites.contains(path)) {
             pendingFavorites.remove(path)
             btnFavorite.text = "收藏"
-            Toast.makeText(this, "已取消收藏", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已取消收藏")
         } else {
             pendingFavorites.add(path)
             btnFavorite.text = "取消收藏"
-            Toast.makeText(this, "已标记收藏（保存后生效）", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已标记收藏（保存后生效）")
         }
     }
 
@@ -376,7 +376,7 @@ class ImageViewerActivity : Activity() {
                 dirCache.clear()
                 scanCurrentDirectory()
             } else {
-                Toast.makeText(this, "未选择目录", Toast.LENGTH_SHORT).show()
+                ToastUtil.show(this, "未选择目录")
             }
         }
     }
@@ -391,7 +391,7 @@ class ImageViewerActivity : Activity() {
 
         val dir = File(currentDirectoryPath)
         if (!dir.exists() || !dir.isDirectory) {
-            Toast.makeText(this, "目录不存在: $currentDirectoryPath", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "目录不存在: $currentDirectoryPath")
             return
         }
 
@@ -415,7 +415,7 @@ class ImageViewerActivity : Activity() {
             }
         } else {
             runOnUiThread {
-                Toast.makeText(this, "该目录下没有图片", Toast.LENGTH_SHORT).show()
+                ToastUtil.show(this, "该目录下没有图片")
             }
         }
     }
@@ -509,7 +509,7 @@ class ImageViewerActivity : Activity() {
         }
         val file = sourceList[currentIndex]
         if (!file.exists()) {
-            Toast.makeText(this, "图片不存在", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "图片不存在")
             return
         }
 
@@ -519,7 +519,9 @@ class ImageViewerActivity : Activity() {
 
             val bitmap = BitmapFactory.decodeFile(file.absolutePath)
             if (bitmap == null || Thread.interrupted()) {
-                runOnUiThread { Toast.makeText(this, "无法加载图片", Toast.LENGTH_SHORT).show() }
+                runOnUiThread { 
+                    ToastUtil.show(this, "无法加载图片")
+                }
                 return@Thread
             }
 
@@ -546,7 +548,7 @@ class ImageViewerActivity : Activity() {
                 ivImage.setImageBitmap(enhanced)
 
                 if (showToast) {
-                    Toast.makeText(this, "已应用", Toast.LENGTH_SHORT).show()
+                    ToastUtil.show(this, "已应用")
                 }
 
                 if (oldDrawable is BitmapDrawable) {
@@ -788,7 +790,7 @@ class ImageViewerActivity : Activity() {
             }
 
             loadCurrentImage()
-            Toast.makeText(this, "已还原为默认值", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已还原为默认值")
         }
 
         btnApply.setOnClickListener {
@@ -907,9 +909,9 @@ class ImageViewerActivity : Activity() {
         }
 
         if (savedSomething) {
-            Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已保存")
         } else {
-            Toast.makeText(this, "没有需要保存的数据", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "没有需要保存的数据")
         }
     }
 

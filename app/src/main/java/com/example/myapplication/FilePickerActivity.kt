@@ -136,7 +136,7 @@ class FilePickerActivity : AppCompatActivity() {
         if (parentFile != null && parentFile.exists()) {
             enterDirectory(parentFile, 0)
         } else {
-            Toast.makeText(this, "已到根目录", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已到根目录")
         }
     }
 

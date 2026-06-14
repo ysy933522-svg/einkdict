@@ -140,7 +140,7 @@ class HistoryActivity : Activity() {
     private fun showClearHistoryDialog() {
         val totalCount = dbHelper.getHistoryTotalCount()
         if (totalCount == 0) {
-            Toast.makeText(this, "历史记录已为空", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "历史记录已为空")
             return
         }
 
@@ -149,7 +149,7 @@ class HistoryActivity : Activity() {
             .setMessage("确定要清除所有 $totalCount 条历史记录吗？")
             .setPositiveButton("确定") { _, _ ->
                 dbHelper.clearAllHistory()
-                Toast.makeText(this, "已清除所有历史记录", Toast.LENGTH_SHORT).show()
+                ToastUtil.show(this, "已清除所有历史记录")
                 historyCurrentPage = 0
                 historyTotalPage = 0
                 loadHistoryPage()
@@ -161,7 +161,7 @@ class HistoryActivity : Activity() {
     private fun exportHistoryToFile() {
         val allHistory = dbHelper.getAllHistory()
         if (allHistory.isEmpty()) {
-            Toast.makeText(this, "没有历史记录可导出", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "没有历史记录可导出")
             return
         }
 
@@ -184,10 +184,10 @@ class HistoryActivity : Activity() {
             FileOutputStream(exportFile).use { fos ->
                 fos.write(content.toString().toByteArray())
             }
-            Toast.makeText(this, "已导出到: ${exportFile.absolutePath}", Toast.LENGTH_LONG).show()
+            ToastUtil.show(this, "已导出到: ${exportFile.absolutePath}")
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(this, "导出失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "导出失败: ${e.message}")
         }
     }
 

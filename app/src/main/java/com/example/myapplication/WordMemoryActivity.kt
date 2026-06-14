@@ -78,6 +78,7 @@ class WordMemoryActivity : Activity() {
         allLoadedWords = dbHelper.loadWordsForMemory(category, TOTAL_WORDS)
         if (allLoadedWords.isEmpty()) {
             ToastUtil.show(this, "该分类暂无单词，请先导入")
+            ToastUtil.show(this, "本轮所有单词已学习完成")
             finish()
             return
         }
@@ -200,14 +201,14 @@ class WordMemoryActivity : Activity() {
                 pendingRemoveFavorites.add(word)
             }
             btnFavorite.text = "收藏"
-            Toast.makeText(this, "已取消收藏（保存后生效）", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已取消收藏（保存后生效）")
         } else {
             pendingAddFavorites.add(word)
             if (pendingRemoveFavorites.contains(word)) {
                 pendingRemoveFavorites.remove(word)
             }
             btnFavorite.text = "取消收藏"
-            Toast.makeText(this, "已标记收藏（保存后生效）", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已标记收藏（保存后生效）")
         }
     }
 
@@ -304,9 +305,10 @@ class WordMemoryActivity : Activity() {
         }
 
         if (savedSomething) {
-            Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已保存 ")
+
         } else {
-            Toast.makeText(this, "没有需要保存的数据", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "没有需要保存的数据")
         }
     }
 

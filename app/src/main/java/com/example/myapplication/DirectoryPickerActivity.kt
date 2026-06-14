@@ -92,7 +92,7 @@ class DirectoryPickerActivity : Activity() {
     private fun loadDirectory(path: String, page: Int = 0) {
         val dir = File(path)
         if (!dir.exists() || !dir.isDirectory) {
-            Toast.makeText(this, "无法访问目录: $path", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "无法访问目录: $path")
             return
         }
 
@@ -181,7 +181,7 @@ class DirectoryPickerActivity : Activity() {
         if (parentFile != null && parentFile.exists()) {
             loadDirectory(parentFile.absolutePath, 0)
         } else {
-            Toast.makeText(this, "已在最顶层目录", Toast.LENGTH_SHORT).show()
+            ToastUtil.show(this, "已在最顶层目录")
         }
     }
 

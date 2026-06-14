@@ -58,7 +58,7 @@ class RecentFilesActivity : AppCompatActivity() {
                         intent.putExtra("pdf_path", file.absolutePath)
                         startActivity(intent)
                     } else {
-                        Toast.makeText(this, "文件已不存在", Toast.LENGTH_SHORT).show()
+                        ToastUtil.show(this, "文件已不存在")
                     }
                 }
             }
