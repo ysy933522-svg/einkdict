@@ -101,6 +101,12 @@ class DictDbHelper(context: Context) {
                     "content TEXT NOT NULL, " +
                     "create_time INTEGER DEFAULT 0)")
 
+
+            memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS word_favorites(" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "word TEXT UNIQUE, " +
+                    "favorite_time INTEGER)")
+
             isMemoryReady = true
             Log.d(TAG, "记忆/历史数据库加载完成")
         } catch (e: Exception) {
