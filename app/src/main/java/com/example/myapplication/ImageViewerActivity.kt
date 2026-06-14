@@ -9,7 +9,11 @@ import android.graphics.*
 import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
+import android.view.ViewTreeObserver
+import android.view.WindowManager
 import android.widget.*
 import org.opencv.android.OpenCVLoader
 import java.io.File
@@ -33,18 +37,21 @@ class ImageViewerActivity : Activity() {
         private const val KEY_THRESHOLD = "threshold"
         private const val KEY_DENOISE = "denoise"
         private const val KEY_COLOR_TEMP = "color_temp"
-        private const val KEY_PRINT_CLEAN = "print_clean_strength"  // 新增
+        private const val KEY_PRINT_CLEAN = "print_clean_strength"
     }
-    // 原有参数
 
-
-    // 新增参数
-    // 新增
+    // 图像参数
+    private var brightness = 0f
+    private var contrast = 1f
+    private var saturation = 1f
+    private var clipLimit = 3.0f
+    private var sharpenStrength = 0.5f
+    private var gamma = 1.0f
+    private var threshold = 0
+    private var denoise = 0f
+    private var colorTemp = 0
     private var printCleanStrength = 0f
-    private var gamma = 1.0f           // 伽马校正
-    private var threshold = 0          // 二值化阈值（0=不启用）
-    private var denoise = 0f           // 降噪强度
-    private var colorTemp = 0          // 色温偏移
+
     private lateinit var prefs: SharedPreferences
     private var currentScale = 1.0f
     private val maxScale = 4.0f
@@ -64,38 +71,37 @@ class ImageViewerActivity : Activity() {
     private lateinit var btnReload: Button
     private lateinit var btnBack: Button
     private lateinit var btnSettings: Button
+    private lateinit var btnFavorite: Button
     private lateinit var layoutNumberButtons: LinearLayout
 
     private lateinit var dbHelper: DictDbHelper
 
-    private var currentDirectoryPath: String = ""
+    private var currentDirectoryPath = ""
     private var recursiveScan = false
 
     private var imageFiles = ArrayList<File>()
     private var currentIndex = 0
 
+    // 收藏相关
+    private var favoriteFiles = mutableListOf<File>()
+    private var isFavoriteMode = false
+    private val pendingFavorites = mutableSetOf<String>()  // 待入库的收藏路径
+
     private val scoreCache = mutableMapOf<String, Pair<Int, Int>>()
     private var hasUnsavedChanges = false
-
-    // 图像滤镜参数（从 SharedPreferences 读取）
-    private var brightness: Float = 0f
-    private var contrast: Float = 1f
-    private var saturation: Float = 1f
-    private var clipLimit: Float = 3.0f
-    private var sharpenStrength: Float = 0.5f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_image_viewer)
 
-        // 初始化 OpenCV（必须在任何 OpenCV 调用之前）
+        // 初始化 OpenCV
         if (!OpenCVLoader.initDebug()) {
             Log.e("OpenCV", "初始化失败")
         } else {
             Log.d("OpenCV", "初始化成功")
         }
 
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
 
         ivImage = findViewById(R.id.iv_image)
         btnFamiliar = findViewById(R.id.btn_familiar)
@@ -107,19 +113,31 @@ class ImageViewerActivity : Activity() {
         btnReload = findViewById(R.id.btn_reload)
         btnBack = findViewById(R.id.btn_back)
         btnSettings = findViewById(R.id.btn_settings)
+        btnFavorite = findViewById(R.id.btn_favorite)
         layoutNumberButtons = findViewById(R.id.layout_number_buttons)
 
         dbHelper = (application as MyApplication).dbHelper
 
-        // 统一使用同一个 SharedPreferences
         prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         loadSettings()
 
         applyEinkStyle()
 
-        Thread {
-            waitForDbAndScan()
-        }.start()
+        // 加载收藏列表
+        loadFavoritesFromDb()
+
+        // 如果收藏列表不为空，直接进入收藏模式
+        if (favoriteFiles.isNotEmpty()) {
+            isFavoriteMode = true
+            currentIndex = 0
+            loadCurrentImage()
+            generateNumberButtons()
+        } else {
+            // 否则等待数据库就绪后扫描目录
+            Thread {
+                waitForDbAndScan()
+            }.start()
+        }
 
         btnFamiliar.setOnClickListener { onFamiliar() }
         btnStrange.setOnClickListener { onStrange() }
@@ -130,13 +148,28 @@ class ImageViewerActivity : Activity() {
         btnReload.setOnClickListener { reloadConfig() }
         btnBack.setOnClickListener { finish() }
         btnSettings.setOnClickListener { showSettingsDialog() }
+        btnFavorite.setOnClickListener { toggleFavorite() }
 
         findViewById<Button>(R.id.btn_zoom_in).setOnClickListener { zoomIn() }
         findViewById<Button>(R.id.btn_zoom_out).setOnClickListener { zoomOut() }
 
+        ivImage.isClickable = true
+        ivImage.setOnTouchListener { _, event -> handleTouch(event) }
 
 
-        prefs = getSharedPreferences("image_settings", MODE_PRIVATE)
+        // 在已有的 findViewById 之后添加
+        val btnMore = findViewById<Button>(R.id.btn_more)
+        val extraButtonBar = findViewById<LinearLayout>(R.id.extra_button_bar)
+
+        btnMore.setOnClickListener {
+            val isVisible = extraButtonBar.visibility == View.VISIBLE
+            extraButtonBar.visibility = if (isVisible) View.GONE else View.VISIBLE
+            btnMore.text = if (isVisible) "更多" else "收起"
+        }
+
+    }
+
+    private fun loadSettings() {
         brightness = prefs.getFloat(KEY_BRIGHTNESS, 0f)
         contrast = prefs.getFloat(KEY_CONTRAST, 1f)
         saturation = prefs.getFloat(KEY_SATURATION, 1f)
@@ -146,34 +179,35 @@ class ImageViewerActivity : Activity() {
         threshold = prefs.getInt(KEY_THRESHOLD, 0)
         denoise = prefs.getFloat(KEY_DENOISE, 0f)
         colorTemp = prefs.getInt(KEY_COLOR_TEMP, 0)
-        printCleanStrength = prefs.getFloat(KEY_PRINT_CLEAN, 0f)  // 新增
-
-
-
-        ivImage.isClickable = true
-        ivImage.setOnTouchListener { _, event -> handleTouch(event) }
-    }
-
-    private fun loadSettings() {
-        brightness = prefs.getFloat(KEY_BRIGHTNESS, 0f)
-        contrast = prefs.getFloat(KEY_CONTRAST, 1f)
-        saturation = prefs.getFloat(KEY_SATURATION, 1f)
-        clipLimit = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f)
-        sharpenStrength = prefs.getFloat(KEY_SHARPEN, 0.5f)
+        printCleanStrength = prefs.getFloat(KEY_PRINT_CLEAN, 0f)
     }
 
     private fun applyEinkStyle() {
-        val buttons = listOf(
+        // 主按钮行
+        val mainButtons = listOf(
             btnFamiliar, btnStrange, btnSave, btnPrev, btnNext,
-            btnSwitchDir, btnReload, btnBack, btnSettings,
+            btnSwitchDir, btnReload, btnBack, btnSettings, btnFavorite,
             findViewById<Button>(R.id.btn_zoom_in),
-            findViewById<Button>(R.id.btn_zoom_out)
+            findViewById<Button>(R.id.btn_zoom_out),
+            findViewById<Button>(R.id.btn_more)  // 新增
         )
-        for (btn in buttons) {
+        for (btn in mainButtons) {
             btn.setTextColor(Color.BLACK)
             btn.setBackgroundColor(Color.WHITE)
             btn.elevation = 0f
             btn.stateListAnimator = null
+        }
+
+        // 额外按钮行中的所有按钮
+        val extraBar = findViewById<LinearLayout>(R.id.extra_button_bar)
+        for (i in 0 until extraBar.childCount) {
+            val child = extraBar.getChildAt(i)
+            if (child is Button) {
+                child.setTextColor(Color.BLACK)
+                child.setBackgroundColor(Color.WHITE)
+                child.elevation = 0f
+                child.stateListAnimator = null
+            }
         }
     }
 
@@ -266,6 +300,44 @@ class ImageViewerActivity : Activity() {
         return false
     }
 
+    // ==================== 收藏相关 ====================
+
+    private fun loadFavoritesFromDb() {
+        val paths = dbHelper.getAllFavoritePaths()
+        favoriteFiles.clear()
+        for (path in paths) {
+            val file = File(path)
+            if (file.exists()) {
+                favoriteFiles.add(file)
+            } else {
+                dbHelper.deleteFavoriteByPath(path)
+            }
+        }
+    }
+
+    private fun toggleFavorite() {
+        val currentFile = getCurrentFile() ?: return
+        val path = currentFile.absolutePath
+
+        if (pendingFavorites.contains(path)) {
+            pendingFavorites.remove(path)
+            btnFavorite.text = "收藏"
+            Toast.makeText(this, "已取消收藏", Toast.LENGTH_SHORT).show()
+        } else {
+            pendingFavorites.add(path)
+            btnFavorite.text = "取消收藏"
+            Toast.makeText(this, "已标记收藏（保存后生效）", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun updateFavoriteButton() {
+        val currentFile = getCurrentFile() ?: return
+        val path = currentFile.absolutePath
+        val isPending = pendingFavorites.contains(path)
+        val isDbFav = dbHelper.isFavorite(path)
+        btnFavorite.text = if (isPending || isDbFav) "取消收藏" else "收藏"
+    }
+
     // ==================== 初始化（记忆上次目录） ====================
 
     private fun waitForDbAndScan() {
@@ -337,6 +409,7 @@ class ImageViewerActivity : Activity() {
         if (imageFiles.isNotEmpty()) {
             currentIndex = Random().nextInt(imageFiles.size)
             runOnUiThread {
+                isFavoriteMode = false  // 切换到普通模式
                 loadCurrentImage()
                 generateNumberButtons()
             }
@@ -366,9 +439,10 @@ class ImageViewerActivity : Activity() {
 
     private fun generateNumberButtons() {
         layoutNumberButtons.removeAllViews()
-        if (imageFiles.isEmpty()) return
+        val sourceList = if (isFavoriteMode) favoriteFiles else imageFiles
+        if (sourceList.isEmpty()) return
 
-        val total = imageFiles.size
+        val total = sourceList.size
         val range = 4
         var start = currentIndex - range
         var end = currentIndex + range
@@ -405,7 +479,7 @@ class ImageViewerActivity : Activity() {
 
             val index = i
             btn.setOnClickListener {
-                if (index < imageFiles.size) {
+                if (index < sourceList.size) {
                     currentIndex = index
                     loadCurrentImage()
                     generateNumberButtons()
@@ -417,20 +491,30 @@ class ImageViewerActivity : Activity() {
 
     // ==================== 图片加载（使用 OpenCV 增强） ====================
 
-    private var loadImageJob: Thread? = null  // 用于取消上一个加载任务
+    private var loadImageJob: Thread? = null
 
     private fun loadCurrentImage(showToast: Boolean = false) {
-        if (imageFiles.isEmpty()) return
-        val file = imageFiles[currentIndex]
+        val sourceList = if (isFavoriteMode) favoriteFiles else imageFiles
+        if (sourceList.isEmpty()) {
+            if (isFavoriteMode) {
+                // 收藏列表为空，回退到普通模式
+                isFavoriteMode = false
+                loadCurrentImage(showToast)
+                return
+            }
+            return
+        }
+        if (currentIndex < 0 || currentIndex >= sourceList.size) {
+            currentIndex = 0
+        }
+        val file = sourceList[currentIndex]
         if (!file.exists()) {
             Toast.makeText(this, "图片不存在", Toast.LENGTH_SHORT).show()
             return
         }
 
-        // 取消上一个仍在运行的加载线程
         loadImageJob?.interrupt()
         loadImageJob = Thread {
-            // 检查是否被中断（快速拖动时）
             if (Thread.interrupted()) return@Thread
 
             val bitmap = BitmapFactory.decodeFile(file.absolutePath)
@@ -439,7 +523,6 @@ class ImageViewerActivity : Activity() {
                 return@Thread
             }
 
-            // OpenCV 增强（确保 OpenCV 已加载）
             val curClip = prefs.getFloat(KEY_CLIP_LIMIT, 3.0f)
             val curSharpen = prefs.getFloat(KEY_SHARPEN, 0.5f)
             val enhanced = DocImageProcessor.enhance(
@@ -453,42 +536,36 @@ class ImageViewerActivity : Activity() {
                 threshold = threshold,
                 denoise = denoise,
                 colorTemp = colorTemp,
-                printCleanStrength = printCleanStrength   // 传入新参数
+                printCleanStrength = printCleanStrength
             )
 
             if (Thread.interrupted()) return@Thread
 
             runOnUiThread {
-                // 保存旧 Bitmap 引用
                 val oldDrawable = ivImage.drawable
-                // 设置新 Bitmap
                 ivImage.setImageBitmap(enhanced)
 
-                // 如果 showToast 为 true，则在图片更新后显示提示
                 if (showToast) {
                     Toast.makeText(this, "已应用", Toast.LENGTH_SHORT).show()
                 }
 
-                // 回收旧 Bitmap（确保不是同一个对象且未被回收）
                 if (oldDrawable is BitmapDrawable) {
                     val oldBitmap = oldDrawable.bitmap
                     if (oldBitmap != null && !oldBitmap.isRecycled && oldBitmap !== enhanced) {
                         oldBitmap.recycle()
                     }
                 }
-                // 回收原始解码的 Bitmap
                 if (!bitmap.isRecycled) {
                     bitmap.recycle()
                 }
 
-                // 缩放等后续处理
                 currentScale = 1.0f
                 ivImage.scaleType = ImageView.ScaleType.MATRIX
                 if (ivImage.width > 0 && ivImage.height > 0) {
                     applyFitCenterMatrix()
                 } else {
                     ivImage.viewTreeObserver.addOnGlobalLayoutListener(object :
-                        android.view.ViewTreeObserver.OnGlobalLayoutListener {
+                        ViewTreeObserver.OnGlobalLayoutListener {
                         override fun onGlobalLayout() {
                             ivImage.viewTreeObserver.removeOnGlobalLayoutListener(this)
                             applyFitCenterMatrix()
@@ -496,12 +573,14 @@ class ImageViewerActivity : Activity() {
                     })
                 }
 
-                // 更新分数缓存
                 val filePath = file.absolutePath
                 if (!scoreCache.containsKey(filePath)) {
                     val dbScore = dbHelper.getImageScore(filePath)
                     scoreCache[filePath] = dbScore ?: Pair(0, 0)
                 }
+
+                // 更新收藏按钮状态
+                updateFavoriteButton()
             }
         }.also { it.start() }
     }
@@ -511,21 +590,16 @@ class ImageViewerActivity : Activity() {
     private fun showSettingsDialog() {
         val dialog = Dialog(this)
         dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        dialog.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        dialog.window?.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         dialog.setContentView(R.layout.dialog_image_settings)
 
-        // 设置对话框宽度为屏幕宽度的 95%
         val displayMetrics = resources.displayMetrics
         val width = (displayMetrics.widthPixels * 0.95).toInt()
-        dialog.window?.setLayout(width, android.view.WindowManager.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setLayout(width, WindowManager.LayoutParams.WRAP_CONTENT)
+        dialog.window?.setGravity(Gravity.TOP)
+        dialog.window?.attributes?.y = 0
+        dialog.window?.attributes?.x = 0
 
-        // ★ 让对话框靠上显示，顶住屏幕顶部
-        dialog.window?.setGravity(android.view.Gravity.TOP)          // 对齐到顶部
-        dialog.window?.attributes?.y = 0                              // 垂直偏移量为 0（顶住顶部）
-        dialog.window?.attributes?.x = 0                              // 水平偏移量（可选，0 表示水平居中？实际上 setGravity(TOP) 会让它水平居中，如果想靠左可加 Gravity.START）
-        // 如果想水平也靠左，可以改为：
-
-        // 获取所有控件
         val sbBrightness = dialog.findViewById<SeekBar>(R.id.sb_brightness)
         val sbContrast = dialog.findViewById<SeekBar>(R.id.sb_contrast)
         val sbSaturation = dialog.findViewById<SeekBar>(R.id.sb_saturation)
@@ -535,6 +609,7 @@ class ImageViewerActivity : Activity() {
         val sbThreshold = dialog.findViewById<SeekBar>(R.id.sb_threshold)
         val sbDenoise = dialog.findViewById<SeekBar>(R.id.sb_denoise)
         val sbTemp = dialog.findViewById<SeekBar>(R.id.sb_temp)
+        val sbPrintClean = dialog.findViewById<SeekBar>(R.id.sb_print_clean)
 
         val tvBrightnessValue = dialog.findViewById<TextView>(R.id.tv_brightness_value)
         val tvContrastValue = dialog.findViewById<TextView>(R.id.tv_contrast_value)
@@ -545,6 +620,7 @@ class ImageViewerActivity : Activity() {
         val tvThresholdValue = dialog.findViewById<TextView>(R.id.tv_threshold_value)
         val tvDenoiseValue = dialog.findViewById<TextView>(R.id.tv_denoise_value)
         val tvTempValue = dialog.findViewById<TextView>(R.id.tv_temp_value)
+        val tvPrintCleanValue = dialog.findViewById<TextView>(R.id.tv_print_clean_value)
 
         val btnReset = dialog.findViewById<Button>(R.id.btn_reset)
         val btnApply = dialog.findViewById<Button>(R.id.btn_apply)
@@ -567,41 +643,22 @@ class ImageViewerActivity : Activity() {
         sbSharpen.progress = (sharpenStrength * 100f).toInt().coerceIn(0, 500)
         tvSharpenValue.text = String.format("%.1f", sharpenStrength)
 
-        // 伽马：progress 0~490 对应 0.1~5.0
         sbGamma.progress = ((gamma - 0.1f) * 100f).toInt().coerceIn(0, 490)
         tvGammaValue.text = String.format("%.1f", gamma)
 
-        // 二值化：0=关，1~255=阈值
         sbThreshold.progress = threshold.coerceIn(0, 255)
         tvThresholdValue.text = if (threshold == 0) "关" else threshold.toString()
 
-        // 降噪：progress 0~500 对应 0.0~50.0
         sbDenoise.progress = (denoise * 10f).toInt().coerceIn(0, 500)
         tvDenoiseValue.text = String.format("%.0f", denoise)
 
-        // 色温：progress 0~400 对应 -200~200
         sbTemp.progress = (colorTemp + 200).coerceIn(0, 400)
         tvTempValue.text = colorTemp.toString()
 
-
-        val sbPrintClean = dialog.findViewById<SeekBar>(R.id.sb_print_clean)
-        val tvPrintCleanValue = dialog.findViewById<TextView>(R.id.tv_print_clean_value)
-
-// 设置当前值（0~100 → 0.0~1.0）
         sbPrintClean.progress = (printCleanStrength * 100f).toInt().coerceIn(0, 100)
-        tvPrintCleanValue.text = String.format("%.0f", printCleanStrength * 100)  // 显示百分比
+        tvPrintCleanValue.text = String.format("%.0f", printCleanStrength * 100)
 
-// 监听器
-        sbPrintClean.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
-                tvPrintCleanValue.text = p.toString()
-            }
-            override fun onStartTrackingTouch(s: SeekBar?) {}
-            override fun onStopTrackingTouch(s: SeekBar?) {}
-        })
-
-
-        // 设置监听器（仅更新数值显示）
+        // 监听器
         sbBrightness.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
                 tvBrightnessValue.text = (p - 255).toString()
@@ -666,6 +723,13 @@ class ImageViewerActivity : Activity() {
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {}
         })
+        sbPrintClean.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar?, p: Int, f: Boolean) {
+                tvPrintCleanValue.text = p.toString()
+            }
+            override fun onStartTrackingTouch(s: SeekBar?) {}
+            override fun onStopTrackingTouch(s: SeekBar?) {}
+        })
 
         // 按钮样式
         for (btn in listOf(btnReset, btnApply, btnOk, btnCancel)) {
@@ -675,9 +739,7 @@ class ImageViewerActivity : Activity() {
             btn.setBackgroundColor(Color.WHITE)
         }
 
-        // 还原按钮
         btnReset.setOnClickListener {
-            // 重置所有滑块到默认值
             sbBrightness.progress = 255
             sbContrast.progress = 100
             sbSaturation.progress = 100
@@ -689,7 +751,6 @@ class ImageViewerActivity : Activity() {
             sbTemp.progress = 200
             sbPrintClean.progress = 0
 
-            // ★ 强制手动更新所有数值 TextView（不依赖监听器）
             tvBrightnessValue.text = "0"
             tvContrastValue.text = "1.0"
             tvSaturationValue.text = "1.0"
@@ -701,7 +762,6 @@ class ImageViewerActivity : Activity() {
             tvTempValue.text = "0"
             tvPrintCleanValue.text = "0"
 
-            // 更新成员变量为默认值
             brightness = 0f
             contrast = 1f
             saturation = 1f
@@ -713,7 +773,6 @@ class ImageViewerActivity : Activity() {
             colorTemp = 0
             printCleanStrength = 0f
 
-            // 保存默认值到 SharedPreferences
             prefs.edit().apply {
                 putFloat(KEY_BRIGHTNESS, brightness)
                 putFloat(KEY_CONTRAST, contrast)
@@ -728,18 +787,15 @@ class ImageViewerActivity : Activity() {
                 apply()
             }
 
-            // 刷新图片
             loadCurrentImage()
             Toast.makeText(this, "已还原为默认值", Toast.LENGTH_SHORT).show()
         }
 
-        // 应用按钮
         btnApply.setOnClickListener {
             readValuesAndSave(dialog)
-            loadCurrentImage(showToast = true)  // 传入 true，图片刷新后显示提示
+            loadCurrentImage(showToast = true)
         }
 
-        // 确定按钮
         btnOk.setOnClickListener {
             readValuesAndSave(dialog)
             loadCurrentImage(showToast = true)
@@ -761,7 +817,6 @@ class ImageViewerActivity : Activity() {
         denoise = dialog.findViewById<SeekBar>(R.id.sb_denoise).progress / 10f
         colorTemp = dialog.findViewById<SeekBar>(R.id.sb_temp).progress - 200
         printCleanStrength = dialog.findViewById<SeekBar>(R.id.sb_print_clean).progress / 100f
-        prefs.edit().putFloat(KEY_PRINT_CLEAN, printCleanStrength).apply()
 
         prefs.edit().apply {
             putFloat(KEY_BRIGHTNESS, brightness)
@@ -773,6 +828,7 @@ class ImageViewerActivity : Activity() {
             putInt(KEY_THRESHOLD, threshold)
             putFloat(KEY_DENOISE, denoise)
             putInt(KEY_COLOR_TEMP, colorTemp)
+            putFloat(KEY_PRINT_CLEAN, printCleanStrength)
             apply()
         }
     }
@@ -780,35 +836,40 @@ class ImageViewerActivity : Activity() {
     // ==================== 操作 ====================
 
     private fun onFamiliar() {
-        if (imageFiles.isEmpty()) return
-        val file = imageFiles[currentIndex]
+        val file = getCurrentFile() ?: return
         val filePath = file.absolutePath
         val old = scoreCache[filePath] ?: Pair(0, 0)
         scoreCache[filePath] = Pair(old.first + 1, old.second)
         hasUnsavedChanges = true
-        nextImage()
+        // 不再自动跳转
     }
 
     private fun onStrange() {
-        if (imageFiles.isEmpty()) return
-        val file = imageFiles[currentIndex]
+        val file = getCurrentFile() ?: return
         val filePath = file.absolutePath
         val old = scoreCache[filePath] ?: Pair(0, 0)
         scoreCache[filePath] = Pair(old.first, old.second + 1)
         hasUnsavedChanges = true
-        nextImage()
+        // 不再自动跳转
+    }
+
+    private fun getCurrentFile(): File? {
+        val sourceList = if (isFavoriteMode) favoriteFiles else imageFiles
+        return sourceList.getOrNull(currentIndex)
     }
 
     private fun prevImage() {
-        if (imageFiles.isEmpty()) return
-        currentIndex = if (currentIndex > 0) currentIndex - 1 else imageFiles.size - 1
+        val sourceList = if (isFavoriteMode) favoriteFiles else imageFiles
+        if (sourceList.isEmpty()) return
+        currentIndex = if (currentIndex > 0) currentIndex - 1 else sourceList.size - 1
         loadCurrentImage()
         generateNumberButtons()
     }
 
     private fun nextImage() {
-        if (imageFiles.isEmpty()) return
-        currentIndex = if (currentIndex < imageFiles.size - 1) currentIndex + 1 else 0
+        val sourceList = if (isFavoriteMode) favoriteFiles else imageFiles
+        if (sourceList.isEmpty()) return
+        currentIndex = if (currentIndex < sourceList.size - 1) currentIndex + 1 else 0
         loadCurrentImage()
         generateNumberButtons()
     }
@@ -820,21 +881,36 @@ class ImageViewerActivity : Activity() {
     }
 
     private fun saveScores() {
-        if (!hasUnsavedChanges) {
-            Toast.makeText(this, "没有需要保存的数据", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val updates = mutableMapOf<String, Pair<Int, Int>>()
-        for ((hash, score) in scoreCache) {
-            if (score.first > 0 || score.second > 0) {
-                updates[hash] = score
+        var savedSomething = false
+
+        // 保存分数
+        if (hasUnsavedChanges) {
+            val updates = mutableMapOf<String, Pair<Int, Int>>()
+            for ((hash, score) in scoreCache) {
+                if (score.first > 0 || score.second > 0) {
+                    updates[hash] = score
+                }
             }
+            if (updates.isNotEmpty()) {
+                dbHelper.batchUpdateImageScores(updates)
+                savedSomething = true
+            }
+            hasUnsavedChanges = false
         }
-        if (updates.isNotEmpty()) {
-            dbHelper.batchUpdateImageScores(updates)
+
+        // 保存收藏
+        if (pendingFavorites.isNotEmpty()) {
+            dbHelper.batchInsertFavorites(pendingFavorites.toList())
+            pendingFavorites.clear()
+            loadFavoritesFromDb()
+            savedSomething = true
         }
-        hasUnsavedChanges = false
-        Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+
+        if (savedSomething) {
+            Toast.makeText(this, "已保存", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "没有需要保存的数据", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onPause() {

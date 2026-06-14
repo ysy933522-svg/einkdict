@@ -86,6 +86,13 @@ class DictDbHelper(context: Context) {
                     "strangeness INTEGER DEFAULT 0, " +
                     "directory TEXT DEFAULT '')")
 
+            // 收藏表
+            memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS favorites(" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                    "image_name TEXT, " +
+                    "image_path TEXT UNIQUE, " +
+                    "parent_path TEXT, " +
+                    "favorite_time INTEGER)")
 
             // 记事本表
             memoryDb?.execSQL("CREATE TABLE IF NOT EXISTS note(" +
@@ -99,8 +106,6 @@ class DictDbHelper(context: Context) {
             Log.e(TAG, "记忆/历史数据库加载失败", e)
         }
     }
-
-
 
     // ---------- 对外接口 ----------
 
@@ -229,10 +234,6 @@ class DictDbHelper(context: Context) {
         isMemoryReady = false
     }
 
-
-
-
-
     // 历史记录缓存（内存列表）
     private val pendingHistory = mutableListOf<String>()
     private val pendingLock = Any()  // 用于线程安全
@@ -299,8 +300,6 @@ class DictDbHelper(context: Context) {
         return word
     }
 
-
-
     // ---------- 图片记忆操作 ----------
     /** 获取图片的记忆分数 */
     fun getImageScore(filePath: String): Pair<Int, Int>? {
@@ -340,16 +339,100 @@ class DictDbHelper(context: Context) {
     }
 
     /** 插入或更新一条图片记录（用于首次扫描时记录路径） */
-    fun insertImageRecord( filePath: String, directory: String) {
+    fun insertImageRecord(filePath: String, directory: String) {
         if (!isMemoryReady || memoryDb == null) return
         memoryDb!!.execSQL(
             "INSERT OR IGNORE INTO image_memory( file_path, directory) VALUES( ?, ?)",
-            arrayOf( filePath, directory)
+            arrayOf(filePath, directory)
         )
     }
 
+    // ---------- 收藏操作 ----------
 
+    /** 获取所有收藏图片路径（按收藏时间倒序） */
+//    val allFavoritePaths: List<String>
+//        get() = getAllFavoritePaths()
 
+    fun getAllFavoritePaths(): List<String> {
+        val paths = mutableListOf<String>()
+        if (!isMemoryReady || memoryDb == null) return paths
+        val cursor = memoryDb!!.query("favorites", arrayOf("image_path"),
+            null, null, null, null, "favorite_time DESC")
+        cursor.use {
+            while (it.moveToNext()) {
+                paths.add(it.getString(0))
+            }
+        }
+        return paths
+    }
+
+    /** 判断某路径是否已被收藏 */
+    fun isFavorite(imagePath: String): Boolean {
+        if (!isMemoryReady || memoryDb == null) return false
+        val cursor = memoryDb!!.query("favorites", null,
+            "image_path = ?", arrayOf(imagePath), null, null, null)
+        return cursor.use { it.count > 0 }
+    }
+
+    /** 插入一条收藏记录（重复路径覆盖） */
+    fun insertFavorite(imageName: String, imagePath: String, parentPath: String): Long {
+        if (!isMemoryReady || memoryDb == null) return -1
+        val values = ContentValues().apply {
+            put("image_name", imageName)
+            put("image_path", imagePath)
+            put("parent_path", parentPath)
+            put("favorite_time", System.currentTimeMillis())
+        }
+        return memoryDb!!.insertWithOnConflict("favorites", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    /** 删除指定路径的收藏 */
+    fun deleteFavoriteByPath(imagePath: String): Int {
+        if (!isMemoryReady || memoryDb == null) return 0
+        return memoryDb!!.delete("favorites", "image_path = ?", arrayOf(imagePath))
+    }
+
+    /** 批量插入收藏（用于保存时一次性写入） */
+    fun batchInsertFavorites(paths: List<String>) {
+        if (!isMemoryReady || memoryDb == null || paths.isEmpty()) return
+        memoryDb!!.beginTransaction()
+        try {
+            for (path in paths) {
+                val file = File(path)
+                val values = ContentValues().apply {
+                    put("image_name", file.name)
+                    put("image_path", path)
+                    put("parent_path", file.parent)
+                    put("favorite_time", System.currentTimeMillis())
+                }
+                memoryDb!!.insertWithOnConflict("favorites", null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            }
+            memoryDb!!.setTransactionSuccessful()
+        } catch (e: Exception) {
+            Log.e(TAG, "批量插入收藏失败", e)
+        } finally {
+            memoryDb!!.endTransaction()
+        }
+    }
+
+    /** 清除数据库中已失效的收藏路径 */
+    fun removeInvalidFavorites() {
+        if (!isMemoryReady || memoryDb == null) return
+        val cursor = memoryDb!!.query("favorites", arrayOf("image_path"),
+            null, null, null, null, null)
+        val invalidPaths = mutableListOf<String>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val path = it.getString(0)
+                if (!File(path).exists()) {
+                    invalidPaths.add(path)
+                }
+            }
+        }
+        for (path in invalidPaths) {
+            memoryDb!!.delete("favorites", "image_path = ?", arrayOf(path))
+        }
+    }
 
     // ---------- 记事本操作 ----------
     fun insertNote(content: String): Long {
@@ -404,9 +487,6 @@ class DictDbHelper(context: Context) {
         }
         memoryDb!!.update("note", values, "id = ?", arrayOf(id.toString()))
     }
-
-
-
 }
 
 data class NoteItem(
