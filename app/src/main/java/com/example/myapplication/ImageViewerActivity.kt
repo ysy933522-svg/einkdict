@@ -322,12 +322,10 @@ class ImageViewerActivity : Activity() {
         if (pendingFavorites.contains(path)) {
             pendingFavorites.remove(path)
             btnFavorite.text = "收藏"
-            ToastUtil.show(this, "已取消收藏")
-        } else {
+         } else {
             pendingFavorites.add(path)
             btnFavorite.text = "取消收藏"
-            ToastUtil.show(this, "已标记收藏（保存后生效）")
-        }
+         }
     }
 
     private fun updateFavoriteButton() {

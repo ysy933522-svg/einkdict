@@ -201,15 +201,13 @@ class WordMemoryActivity : Activity() {
                 pendingRemoveFavorites.add(word)
             }
             btnFavorite.text = "收藏"
-            ToastUtil.show(this, "已取消收藏（保存后生效）")
-        } else {
+         } else {
             pendingAddFavorites.add(word)
             if (pendingRemoveFavorites.contains(word)) {
                 pendingRemoveFavorites.remove(word)
             }
             btnFavorite.text = "取消收藏"
-            ToastUtil.show(this, "已标记收藏（保存后生效）")
-        }
+         }
     }
 
     // ★ 新增：更新收藏按钮文字
